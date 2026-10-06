@@ -1,0 +1,16 @@
+# Казино с друзьями в Telegram (Mini App)
+
+Постановка — в `PROMPT.md`. Документация Telegram — в `docs/telegram/` (см. `README.md` там; `official/` главнее остального; в `official/` подчёркивания экранированы: `chat\_instance`).
+
+## Факты о платформе, нужные проекту
+
+Источник, если не указано иное: `docs/telegram/official/webapps.md`.
+
+- Mini App — обычная веб-страница, которую Telegram открывает во встроенном WebView. Она привязана к боту. Всё состояние и реалтайм — на нашем сервере, Telegram их не даёт.
+- В проде URL приложения должен быть HTTPS (`official/api.md`, WebAppInfo). В тестовой среде Telegram допускается HTTP (раздел «Testing Mini Apps»; `tma-js/platform/creating-new-app.md`).
+- Запуск из группового чата — только по прямой ссылке: `https://t.me/<bot>/<app>?startapp=<param>` или `https://t.me/<bot>?startapp=<param>` (main Mini App). Кнопки `web_app` (inline и клавиатурные) работают только в личном чате с ботом (`official/api.md`, InlineKeyboardButton / KeyboardButton).
+- `startapp` приходит в приложение как `start_param` в initData и как GET-параметр `tgWebAppStartParam`.
+- При запуске по прямой ссылке в initData есть `chat_type` и `chat_instance` (идентификатор чата, не chat_id). Доступа к самому чату нет: ни читать, ни писать сообщения, ни получить список участников.
+- Кто игрок: `initData.user` (WebAppUser) — `id`, `first_name`, `last_name?`, `username?`, `photo_url?` (аватар отдаётся, только если позволяют настройки приватности — нужен запасной вариант).
+- Данным с клиента верить нельзя: сервер получает строку `initData` и проверяет `hash` — HMAC-SHA256 от data-check-string с ключом HMAC-SHA256(bot_token, "WebAppData"); дополнительно проверять свежесть `auth_date` (раздел «Validating data received via the Mini App»; готовая реализация — `tma-js/packages/tma-js-init-data-node/validating.md`).
+- Регистрация: бот через `/newbot` в @BotFather, приложение — `/newapp` (прямая ссылка `t.me/<bot>/<app>`) или настройка Main Mini App (`tma-js/platform/creating-new-app.md`).
