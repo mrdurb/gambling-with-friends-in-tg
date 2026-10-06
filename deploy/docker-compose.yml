@@ -4,6 +4,7 @@ services:
     restart: unless-stopped
     environment:
       BOT_TOKEN: ${BOT_TOKEN}
+      APP_LINK: ${APP_LINK}
     volumes:
       - ./data:/data
 

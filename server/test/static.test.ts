@@ -10,7 +10,7 @@ function setup() {
   writeFileSync(join(dir, 'index.html'), '<!doctype html><title>Казино</title>');
   mkdirSync(join(dir, 'assets'));
   writeFileSync(join(dir, 'assets', 'app.js'), 'console.log(1)');
-  return buildApp(openDb(':memory:'), { botToken: '', devAuth: true }, dir);
+  return buildApp(openDb(':memory:'), { botToken: '', devAuth: true }, { staticDir: dir });
 }
 
 describe('serving the built client', () => {
@@ -45,7 +45,7 @@ describe('serving the built client', () => {
   it('accepts a directory given relative to the working directory', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'casino-static-'));
     writeFileSync(join(dir, 'index.html'), 'relative ok');
-    const app = buildApp(openDb(':memory:'), { botToken: '', devAuth: true }, relative(process.cwd(), dir));
+    const app = buildApp(openDb(':memory:'), { botToken: '', devAuth: true }, { staticDir: relative(process.cwd(), dir) });
     expect((await app.inject({ url: '/' })).body).toBe('relative ok');
   });
 

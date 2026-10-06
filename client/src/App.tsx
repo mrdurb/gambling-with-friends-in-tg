@@ -4,6 +4,11 @@ import { useEffect, useState } from 'react';
 import { fetchMe, UnauthorizedError } from './api.ts';
 import { Cashier } from './screens/Cashier.tsx';
 import { Lobby } from './screens/Lobby.tsx';
+import { Table } from './screens/Table.tsx';
+import { Tables } from './screens/Tables.tsx';
+import { getStartTableCode } from './telegram.ts';
+
+type Screen = { name: 'lobby' } | { name: 'cashier' } | { name: 'tables' } | { name: 'table'; code: string };
 
 type State =
   | { status: 'loading' }
@@ -13,7 +18,11 @@ type State =
 
 export function App() {
   const [state, setState] = useState<State>({ status: 'loading' });
-  const [screen, setScreen] = useState<'lobby' | 'cashier'>('lobby');
+  // Приложение, открытое по ссылке-приглашению, сразу показывает нужный стол.
+  const [screen, setScreen] = useState<Screen>(() => {
+    const code = getStartTableCode();
+    return code ? { name: 'table', code } : { name: 'lobby' };
+  });
 
   useEffect(() => {
     fetchMe().then(
@@ -35,16 +44,30 @@ export function App() {
       return <Placeholder header="Не удалось загрузить" description="Проверьте соединение и откройте приложение заново" />;
     case 'ready': {
       const { me } = state;
-      if (screen === 'cashier') {
-        return (
-          <Cashier
-            balance={me.balance}
-            onBalance={(balance) => setState({ status: 'ready', me: { ...me, balance } })}
-            onBack={() => setScreen('lobby')}
-          />
-        );
+      switch (screen.name) {
+        case 'cashier':
+          return (
+            <Cashier
+              balance={me.balance}
+              onBalance={(balance) => setState({ status: 'ready', me: { ...me, balance } })}
+              onBack={() => setScreen({ name: 'lobby' })}
+            />
+          );
+        case 'tables':
+          return (
+            <Tables onOpen={(code) => setScreen({ name: 'table', code })} onBack={() => setScreen({ name: 'lobby' })} />
+          );
+        case 'table':
+          return <Table code={screen.code} me={me} onBack={() => setScreen({ name: 'tables' })} />;
+        case 'lobby':
+          return (
+            <Lobby
+              me={me}
+              onOpenCashier={() => setScreen({ name: 'cashier' })}
+              onOpenGame={() => setScreen({ name: 'tables' })}
+            />
+          );
       }
-      return <Lobby me={me} onOpenCashier={() => setScreen('cashier')} />;
     }
   }
 }

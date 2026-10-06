@@ -1,5 +1,6 @@
 import type { Me } from '@casino/shared';
-import { Avatar, Cell, List, Section } from '@telegram-apps/telegram-ui';
+import { Cell, List, Section } from '@telegram-apps/telegram-ui';
+import { PlayerAvatar, playerName } from '../components/PlayerAvatar.tsx';
 import { formatChips } from '../format.ts';
 
 const GAMES = [
@@ -8,30 +9,31 @@ const GAMES = [
   { id: 'roulette', title: 'Рулетка', available: false },
 ];
 
-function initials(me: Me): string {
-  return (me.firstName[0] ?? '') + (me.lastName?.[0] ?? '');
-}
-
 interface Props {
   me: Me;
   onOpenCashier: () => void;
+  onOpenGame: () => void;
 }
 
-export function Lobby({ me, onOpenCashier }: Props) {
-  const name = [me.firstName, me.lastName].filter(Boolean).join(' ');
+export function Lobby({ me, onOpenCashier, onOpenGame }: Props) {
   return (
     <List>
       <Section>
         <Cell
-          before={<Avatar size={48} src={me.photoUrl ?? undefined} acronym={initials(me)} />}
+          before={<PlayerAvatar player={me} size={48} />}
           subtitle={`${formatChips(me.balance)} фишек`}
         >
-          {name}
+          {playerName(me)}
         </Cell>
       </Section>
       <Section header="Игры">
         {GAMES.map((game) => (
-          <Cell key={game.id} disabled={!game.available} after={game.available ? undefined : 'Скоро'}>
+          <Cell
+            key={game.id}
+            disabled={!game.available}
+            after={game.available ? undefined : 'Скоро'}
+            onClick={game.available ? onOpenGame : undefined}
+          >
             {game.title}
           </Cell>
         ))}

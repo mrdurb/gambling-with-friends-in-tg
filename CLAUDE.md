@@ -29,7 +29,7 @@ React зафиксирован на 18.x из-за `@telegram-apps/telegram-ui`.
 ## Деплой
 
 - Push в `main` → GitHub Actions (`.github/workflows/ci.yml`): тесты → образ в `ghcr.io/mrdurb/gambling-with-friends-in-tg` → выкладка по SSH. Следить: `gh run watch`.
-- Сервер: `root@129.101.113.9`, вход только по ключу. Всё в `/opt/casino`: `docker-compose.yml` и `Caddyfile` (копируются из `deploy/` при каждом деплое), `.env` (`BOT_TOKEN`, `DOMAIN`; в репозитории его нет), `data/casino.db`, `backups/`.
+- Сервер: `root@129.101.113.9`, вход только по ключу. Всё в `/opt/casino`: `docker-compose.yml` и `Caddyfile` (копируются из `deploy/` при каждом деплое), `.env` (`BOT_TOKEN`, `DOMAIN`, `APP_LINK`; в репозитории его нет), `data/casino.db`, `backups/`.
 - Адрес: `https://129.101.113.9.sslip.io`, приложение в Telegram: `t.me/megaloodkabot/loodkaroom`. При переезде на свой домен поменять `DOMAIN` в `/opt/casino/.env`, выполнить `docker compose up -d` и обновить URL приложения в @BotFather (`/myapps`).
 - Логи: `ssh root@129.101.113.9 'cd /opt/casino && docker compose logs --tail 50 app'`.
 - Копия базы: ежедневно в 04:15 по времени сервера, `/etc/cron.d/casino-backup`, хранится 7 дней.
