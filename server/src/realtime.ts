@@ -1,6 +1,15 @@
 import { randomInt } from 'node:crypto';
 import type { Server as HttpServer } from 'node:http';
-import type { BjAction, Card, ClientToServerEvents, Me, PlayerInfo, ServerToClientEvents } from '@casino/shared';
+import {
+  CHAT_MAX_LENGTH,
+  REACTIONS,
+  type BjAction,
+  type Card,
+  type ClientToServerEvents,
+  type Me,
+  type PlayerInfo,
+  type ServerToClientEvents,
+} from '@casino/shared';
 import { Server, type Socket } from 'socket.io';
 import { authenticate, type AuthConfig } from './auth.ts';
 import type { Db } from './db.ts';
@@ -90,6 +99,27 @@ export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink
     socket.on('game:action', (action, ack) => {
       if (typeof ack !== 'function') return;
       ack(ACTIONS.includes(action) ? rooms.act(user.id, action) : { ok: false, error: 'not_allowed' });
+    });
+
+    // Чат и реакции нигде не сохраняются: проверили и сразу разослали тем, у кого открыт стол.
+    socket.on('chat:send', (text, ack) => {
+      if (typeof ack !== 'function') return;
+      const code = rooms.tableOf(user.id);
+      if (!code) return ack({ ok: false, error: 'not_at_table' });
+      const trimmed = typeof text === 'string' ? text.trim() : '';
+      if (!trimmed || [...trimmed].length > CHAT_MAX_LENGTH) return ack({ ok: false, error: 'bad_message' });
+      io.to(code).emit('chat:message', { from: toPlayerInfo(user), text: trimmed, at: Date.now() });
+      ack({ ok: true });
+    });
+
+    socket.on('reaction:send', (reaction, ack) => {
+      if (typeof ack !== 'function') return;
+      const code = rooms.tableOf(user.id);
+      if (!code || !rooms.isSeatedAt(user.id, code)) return ack({ ok: false, error: 'not_seated' });
+      const value = reaction?.kind === 'emoji' ? reaction.value : null;
+      if (!(REACTIONS as readonly unknown[]).includes(value)) return ack({ ok: false, error: 'bad_reaction' });
+      io.to(code).emit('reaction', { userId: user.id, reaction: { kind: 'emoji', value: value as string } });
+      ack({ ok: true });
     });
 
     socket.on('disconnect', () => {

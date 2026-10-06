@@ -56,6 +56,8 @@ export interface ClientToServerEvents {
   'seat:leave': () => void;
   'game:bet': (amount: number, ack: (result: Ack) => void) => void;
   'game:action': (action: BjAction, ack: (result: Ack) => void) => void;
+  'chat:send': (text: string, ack: (result: Ack) => void) => void;
+  'reaction:send': (reaction: Reaction, ack: (result: Ack) => void) => void;
 }
 
 export interface ServerToClientEvents {
@@ -64,6 +66,8 @@ export interface ServerToClientEvents {
   kicked: () => void;
   // Баланс игрока изменился (расчёт раздачи).
   balance: (balance: number) => void;
+  'chat:message': (message: ChatMessage) => void;
+  reaction: (event: ReactionEvent) => void;
 }
 
 // ── Блэкджек ─────────────────────────────────────────────────────────────
@@ -130,4 +134,28 @@ export interface BjDetails {
   bust: boolean;
   doubles: number;
   doublesWon: number;
+}
+
+// ── Чат и реакции ────────────────────────────────────────────────────────
+
+export const CHAT_MAX_LENGTH = 200;
+export const REACTIONS = ['😂', '😡', '🎉', '😭', '😎', '🤔', '👍', '🤡'] as const;
+// Сколько реакция видна возле аватарки.
+export const REACTION_MS = 3000;
+
+// kind оставляет место для кастомных эмодзи Telegram (отдельный вид с идентификатором).
+export interface Reaction {
+  kind: 'emoji';
+  value: string;
+}
+
+export interface ChatMessage {
+  from: PlayerInfo;
+  text: string;
+  at: number;
+}
+
+export interface ReactionEvent {
+  userId: number;
+  reaction: Reaction;
 }

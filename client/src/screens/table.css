@@ -168,9 +168,12 @@
   font-weight: 700;
 }
 
-.panel {
+.bottom {
   position: sticky;
   bottom: 0;
+}
+
+.panel {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -205,4 +208,83 @@
   border-radius: 999px;
   font-weight: 700;
   font-size: 13px;
+}
+
+.avatar-slot {
+  position: relative;
+  display: inline-flex;
+}
+
+.tbl button.avatar-button {
+  padding: 0;
+  border-radius: 50%;
+  background: none;
+  line-height: 0;
+}
+
+.reaction {
+  position: absolute;
+  top: -10px;
+  right: -22px;
+  font-size: 24px;
+  line-height: 1;
+  animation: card-in 0.18s ease-out;
+}
+
+.reaction-picker {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+}
+
+.tbl .reaction-picker button {
+  padding: 2px;
+  background: none;
+  font-size: 18px;
+}
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--tgui--bg_color);
+  border-top: 1px solid var(--tgui--divider);
+}
+
+.chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.chat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 30vh;
+  overflow-y: auto;
+}
+
+.chat-message {
+  display: flex;
+  flex-direction: column;
+  overflow-wrap: anywhere;
+}
+
+.chat .row {
+  display: flex;
+  gap: 6px;
+}
+
+.chat input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--tgui--secondary_fill);
+  color: inherit;
+  font: inherit;
 }

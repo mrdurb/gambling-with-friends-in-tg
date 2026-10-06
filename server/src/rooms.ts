@@ -151,6 +151,15 @@ export class Rooms {
     return result;
   }
 
+  // Код стола, который у игрока сейчас открыт.
+  tableOf(userId: number): string | null {
+    return this.presentAt.get(userId) ?? null;
+  }
+
+  isSeatedAt(userId: number, code: string): boolean {
+    return this.seatedAt.get(userId) === code;
+  }
+
   // Место игрока, если он сидит и не уходит из-за стола.
   private placeOf(userId: number): { room: Room; index: number; seat: Seat } | null {
     const room = this.rooms.get(this.seatedAt.get(userId) ?? '');

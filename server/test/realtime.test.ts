@@ -1,5 +1,17 @@
 import type { AddressInfo } from 'node:net';
-import type { Ack, BjAction, Card, ClientToServerEvents, Rank, ServerToClientEvents, Suit, TableSnapshot } from '@casino/shared';
+import type {
+  Ack,
+  BjAction,
+  Card,
+  ChatMessage,
+  ClientToServerEvents,
+  Rank,
+  Reaction,
+  ReactionEvent,
+  ServerToClientEvents,
+  Suit,
+  TableSnapshot,
+} from '@casino/shared';
 import { io as connect, type Socket } from 'socket.io-client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
@@ -45,6 +57,16 @@ const sit = (socket: Client, seat: number, force = false) =>
   new Promise<Ack>((resolve) => socket.emit('seat:take', seat, force, resolve));
 const bet = (socket: Client, amount: number) => new Promise<Ack>((resolve) => socket.emit('game:bet', amount, resolve));
 const act = (socket: Client, action: BjAction) => new Promise<Ack>((resolve) => socket.emit('game:action', action, resolve));
+const say = (socket: Client, text: string) => new Promise<Ack>((resolve) => socket.emit('chat:send', text, resolve));
+const react = (socket: Client, value: string) =>
+  new Promise<Ack>((resolve) => socket.emit('reaction:send', { kind: 'emoji', value } as Reaction, resolve));
+const collect = <T,>(socket: Client, event: 'chat:message' | 'reaction') => {
+  const items: T[] = [];
+  socket.on(event, ((item: T) => items.push(item)) as never);
+  return items;
+};
+// Сообщения сокета доставляются по порядку, поэтому ответ на «пинг» означает, что всё отправленное раньше уже пришло.
+const settle = (socket: Client) => say(socket, 'ping');
 const snapshotWhere = (socket: Client, matches: (snapshot: TableSnapshot) => boolean) =>
   new Promise<TableSnapshot>((resolve) => {
     const listener = (snapshot: TableSnapshot) => {
@@ -171,5 +193,62 @@ describe('realtime tables', () => {
     expect(await bet(socket, '100' as unknown as number)).toEqual({ ok: false, error: 'bad_bet' });
     expect(await act(socket, 'cheat' as BjAction)).toEqual({ ok: false, error: 'not_allowed' });
     expect(await bet(socket, 100)).toEqual({ ok: true });
+  });
+
+  it('delivers a chat message to everyone at the table, spectators included, and to nobody else', async () => {
+    const { client, code, db } = await setup();
+    const [writer, seated, spectator, outsider] = [client('dev 1'), client('dev 2'), client('dev 3'), client('dev 4')];
+    await join(writer, code);
+    await join(seated, code);
+    await join(spectator, code);
+    await sit(seated, 0);
+    const heard = [seated, spectator, outsider].map((socket) => collect<ChatMessage>(socket, 'chat:message'));
+
+    expect(await say(writer, '  привет, стол  ')).toEqual({ ok: true });
+    expect(await say(spectator, 'я просто смотрю')).toEqual({ ok: true });
+    await Promise.all([settle(seated), settle(spectator)]);
+
+    for (const messages of heard.slice(0, 2)) {
+      expect(messages.slice(0, 2)).toMatchObject([
+        { from: { id: 1, firstName: 'Игрок 1' }, text: 'привет, стол' },
+        { from: { id: 3 }, text: 'я просто смотрю' },
+      ]);
+      expect(messages[0]!.at).toBeGreaterThan(0);
+    }
+    expect(heard[2]).toEqual([]);
+    // Сервер сообщения не хранит.
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((row) => row.name);
+    expect(tables.some((name) => /chat|message/i.test(String(name)))).toBe(false);
+  });
+
+  it('rejects empty, oversized and malformed chat messages', async () => {
+    const { client, code } = await setup();
+    const socket = client('dev 1');
+    expect(await say(socket, 'я ещё не за столом')).toEqual({ ok: false, error: 'not_at_table' });
+    await join(socket, code);
+    expect(await say(socket, '   ')).toEqual({ ok: false, error: 'bad_message' });
+    expect(await say(socket, 'я'.repeat(201))).toEqual({ ok: false, error: 'bad_message' });
+    expect(await say(socket, 42 as unknown as string)).toEqual({ ok: false, error: 'bad_message' });
+    expect(await say(socket, 'я'.repeat(200))).toEqual({ ok: true });
+  });
+
+  it('shows a reaction from a seated player to the table and refuses others', async () => {
+    const { client, code } = await setup();
+    const [seated, spectator] = [client('dev 1'), client('dev 2')];
+    await join(seated, code);
+    await join(spectator, code);
+    await sit(seated, 0);
+    const seen = collect<ReactionEvent>(spectator, 'reaction');
+
+    expect(await react(seated, '🎉')).toEqual({ ok: true });
+    expect(await react(spectator, '🎉')).toEqual({ ok: false, error: 'not_seated' });
+    expect(await react(seated, '💩')).toEqual({ ok: false, error: 'bad_reaction' });
+    expect(await react(seated, '<img src=x>')).toEqual({ ok: false, error: 'bad_reaction' });
+    const raw = seated as unknown as { emit: (...args: unknown[]) => void };
+    const malformed = await new Promise<Ack>((resolve) => raw.emit('reaction:send', null, resolve));
+    expect(malformed).toEqual({ ok: false, error: 'bad_reaction' });
+
+    await settle(spectator);
+    expect(seen).toEqual([{ userId: 1, reaction: { kind: 'emoji', value: '🎉' } }]);
   });
 });
