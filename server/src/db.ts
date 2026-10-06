@@ -39,6 +39,22 @@ export function openDb(path: string): Db {
       last_visit_at INTEGER NOT NULL,
       PRIMARY KEY (table_code, user_id)
     );
+    CREATE TABLE IF NOT EXISTS rounds (
+      id INTEGER PRIMARY KEY,
+      table_code TEXT NOT NULL,
+      game TEXT NOT NULL,
+      finished_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS round_results (
+      round_id INTEGER NOT NULL REFERENCES rounds(id),
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      wagered INTEGER NOT NULL,
+      net INTEGER NOT NULL,
+      outcome TEXT NOT NULL,
+      details TEXT NOT NULL,
+      PRIMARY KEY (round_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS round_results_user ON round_results(user_id, round_id);
   `);
   // Игроки, созданные до появления журнала, получили стартовые фишки без записи о них.
   db.prepare(`

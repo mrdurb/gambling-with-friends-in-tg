@@ -1,14 +1,19 @@
 import type { PlayerInfo } from '@casino/shared';
-import { Avatar } from '@telegram-apps/telegram-ui';
+import { useState } from 'react';
 
 function initials(player: PlayerInfo): string {
   return ([...player.firstName][0] ?? '') + ([...(player.lastName ?? '')][0] ?? '');
 }
 
-type Size = 20 | 24 | 28 | 40 | 48 | 96;
-
-export function PlayerAvatar({ player, size = 40 }: { player: PlayerInfo; size?: Size }) {
-  return <Avatar size={size} src={player.photoUrl ?? undefined} acronym={initials(player)} />;
+// Кружок с инициалами, поверх которого ложится фотография, когда (и если) она загрузилась.
+export function PlayerAvatar({ player, size = 40 }: { player: PlayerInfo; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <span className="avatar" style={{ width: size, height: size, fontSize: size * 0.4 }}>
+      {initials(player)}
+      {player.photoUrl && !failed && <img src={player.photoUrl} alt="" onError={() => setFailed(true)} />}
+    </span>
+  );
 }
 
 export const playerName = (player: PlayerInfo) => [player.firstName, player.lastName].filter(Boolean).join(' ');

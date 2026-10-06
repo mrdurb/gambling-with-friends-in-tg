@@ -34,7 +34,7 @@ export function Cashier({ balance, onBalance, onBack }: Props) {
   return (
     <List>
       <Section>
-        <Cell onClick={onBack}>‹ В лобби</Cell>
+        <Cell onClick={onBack}>‹ Назад</Cell>
       </Section>
       <Section header="Касса" footer={error ?? `За один раз — до ${formatChips(CASHIER_MAX)} фишек, сколько угодно раз.`}>
         <Cell subtitle="Ваш баланс">{formatChips(balance)} фишек</Cell>

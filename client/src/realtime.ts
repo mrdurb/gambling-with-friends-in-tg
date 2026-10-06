@@ -1,5 +1,5 @@
-import type { Ack, ClientToServerEvents, ServerToClientEvents, TableSnapshot } from '@casino/shared';
-import { useCallback, useEffect, useState } from 'react';
+import type { Ack, BjAction, ClientToServerEvents, ServerToClientEvents, TableSnapshot } from '@casino/shared';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { getAuthHeader } from './telegram.ts';
 
@@ -27,13 +27,18 @@ export interface TableConnection {
   snapshot: TableSnapshot | null;
   sit: (seat: number, force?: boolean) => Promise<Ack>;
   stand: () => void;
+  bet: (amount: number) => Promise<Ack>;
+  act: (action: BjAction) => Promise<Ack>;
   // Вернуть управление этому устройству после вытеснения.
   reclaim: () => void;
 }
 
-export function useTable(code: string): TableConnection {
+// onBalance вызывается, когда сервер сообщает новый баланс игрока (после расчёта раздачи).
+export function useTable(code: string, onBalance: (balance: number) => void): TableConnection {
   const [status, setStatus] = useState<TableStatus>('connecting');
   const [snapshot, setSnapshot] = useState<TableSnapshot | null>(null);
+  const balanceHandler = useRef(onBalance);
+  balanceHandler.current = onBalance;
 
   useEffect(() => {
     const client = getSocket();
@@ -59,7 +64,10 @@ export function useTable(code: string): TableConnection {
     client.on('connect', join);
     client.on('disconnect', onDisconnect);
     client.on('kicked', onKicked);
+    const onBalanceEvent = (balance: number) => balanceHandler.current(balance);
+
     client.on('table:snapshot', setSnapshot);
+    client.on('balance', onBalanceEvent);
     if (client.connected) join();
     else client.connect();
 
@@ -68,6 +76,7 @@ export function useTable(code: string): TableConnection {
       client.off('disconnect', onDisconnect);
       client.off('kicked', onKicked);
       client.off('table:snapshot', setSnapshot);
+      client.off('balance', onBalanceEvent);
       client.emit('table:leave');
     };
   }, [code]);
@@ -77,10 +86,12 @@ export function useTable(code: string): TableConnection {
     [],
   );
   const stand = useCallback(() => void getSocket().emit('seat:leave'), []);
+  const bet = useCallback((amount: number) => new Promise<Ack>((resolve) => getSocket().emit('game:bet', amount, resolve)), []);
+  const act = useCallback((action: BjAction) => new Promise<Ack>((resolve) => getSocket().emit('game:action', action, resolve)), []);
   const reclaim = useCallback(() => {
     setStatus('connecting');
     getSocket().connect();
   }, []);
 
-  return { status, snapshot, sit, stand, reclaim };
+  return { status, snapshot, sit, stand, bet, act, reclaim };
 }

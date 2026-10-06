@@ -44,6 +44,7 @@ export interface TableSnapshot {
   table: TableInfo;
   seats: (SeatView | null)[];
   spectators: number;
+  game: BjView;
 }
 
 export type Ack<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
@@ -53,10 +54,80 @@ export interface ClientToServerEvents {
   'table:leave': () => void;
   'seat:take': (seat: number, force: boolean, ack: (result: Ack) => void) => void;
   'seat:leave': () => void;
+  'game:bet': (amount: number, ack: (result: Ack) => void) => void;
+  'game:action': (action: BjAction, ack: (result: Ack) => void) => void;
 }
 
 export interface ServerToClientEvents {
   'table:snapshot': (snapshot: TableSnapshot) => void;
   // Игрок открыл приложение в другом месте; это подключение больше не используется.
   kicked: () => void;
+  // Баланс игрока изменился (расчёт раздачи).
+  balance: (balance: number) => void;
+}
+
+// ── Блэкджек ─────────────────────────────────────────────────────────────
+
+export const MIN_BET = 5;
+export const MAX_BET = 5000;
+export const CHIP_VALUES = [1, 5, 25, 100, 500, 1000] as const;
+
+export const BET_MS = 20_000;
+export const TURN_MS = 30_000;
+export const RESULT_MS = 5_000;
+// Столько пропусков подряд (не поставил или не походил вовремя) — и игрок встаёт из-за стола.
+export const MAX_MISSES = 2;
+
+export type Suit = 'S' | 'H' | 'D' | 'C';
+export type Rank = 'A' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K';
+
+export interface Card {
+  rank: Rank;
+  suit: Suit;
+}
+
+export type BjAction = 'hit' | 'stand' | 'double' | 'split';
+export type BjPhase = 'waiting' | 'betting' | 'playing' | 'result';
+export type BjHandState = 'playing' | 'stood' | 'bust' | 'blackjack';
+export type BjHandOutcome = 'blackjack' | 'win' | 'push' | 'lose';
+export type RoundOutcome = 'win' | 'lose' | 'push';
+
+export interface BjHandView {
+  cards: Card[];
+  bet: number;
+  total: number;
+  soft: boolean;
+  doubled: boolean;
+  state: BjHandState;
+  // Заполняются после расчёта.
+  outcome: BjHandOutcome | null;
+  net: number | null;
+}
+
+export interface BjSeatView {
+  hands: BjHandView[];
+  // Чистый результат игрока за раздачу; null, пока раздача не рассчитана.
+  net: number | null;
+}
+
+export interface BjView {
+  phase: BjPhase;
+  dealer: {
+    cards: Card[];
+    // true, пока закрытая карта дилера не открыта (в cards её нет).
+    holeHidden: boolean;
+    total: number;
+  };
+  // По местам стола; null — место не участвует в раздаче.
+  seats: (BjSeatView | null)[];
+  turn: { seat: number; hand: number; actions: BjAction[] } | null;
+  // Сколько миллисекунд осталось до конца текущего таймера (ставки, ход, показ результата).
+  timeLeftMs: number | null;
+}
+
+export interface BjDetails {
+  blackjack: boolean;
+  bust: boolean;
+  doubles: number;
+  doublesWon: number;
 }

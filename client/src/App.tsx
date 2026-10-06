@@ -8,7 +8,12 @@ import { Table } from './screens/Table.tsx';
 import { Tables } from './screens/Tables.tsx';
 import { getStartTableCode } from './telegram.ts';
 
-type Screen = { name: 'lobby' } | { name: 'cashier' } | { name: 'tables' } | { name: 'table'; code: string };
+type Screen =
+  | { name: 'lobby' }
+  // back — куда вернуться из кассы (в лобби или за стол).
+  | { name: 'cashier'; back: Screen }
+  | { name: 'tables' }
+  | { name: 'table'; code: string };
 
 type State =
   | { status: 'loading' }
@@ -50,7 +55,7 @@ export function App() {
             <Cashier
               balance={me.balance}
               onBalance={(balance) => setState({ status: 'ready', me: { ...me, balance } })}
-              onBack={() => setScreen({ name: 'lobby' })}
+              onBack={() => setScreen(screen.back)}
             />
           );
         case 'tables':
@@ -58,12 +63,20 @@ export function App() {
             <Tables onOpen={(code) => setScreen({ name: 'table', code })} onBack={() => setScreen({ name: 'lobby' })} />
           );
         case 'table':
-          return <Table code={screen.code} me={me} onBack={() => setScreen({ name: 'tables' })} />;
+          return (
+            <Table
+              code={screen.code}
+              me={me}
+              onBalance={(balance) => setState({ status: 'ready', me: { ...me, balance } })}
+              onOpenCashier={() => setScreen({ name: 'cashier', back: screen })}
+              onBack={() => setScreen({ name: 'tables' })}
+            />
+          );
         case 'lobby':
           return (
             <Lobby
               me={me}
-              onOpenCashier={() => setScreen({ name: 'cashier' })}
+              onOpenCashier={() => setScreen({ name: 'cashier', back: screen })}
               onOpenGame={() => setScreen({ name: 'tables' })}
             />
           );

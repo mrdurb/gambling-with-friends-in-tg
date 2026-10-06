@@ -1,5 +1,5 @@
 import type { AddressInfo } from 'node:net';
-import type { Ack, ClientToServerEvents, ServerToClientEvents, TableSnapshot } from '@casino/shared';
+import type { Ack, BjAction, Card, ClientToServerEvents, Rank, ServerToClientEvents, Suit, TableSnapshot } from '@casino/shared';
 import { io as connect, type Socket } from 'socket.io-client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
@@ -13,11 +13,14 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
 
-async function setup() {
+const card = (text: string): Card => ({ rank: text.slice(0, -1) as Rank, suit: text.slice(-1) as Suit });
+
+async function setup(script = '') {
   const db = openDb(':memory:');
   const authConfig = { botToken: '', devAuth: true };
   const app = buildApp(db, authConfig);
-  const io = attachRealtime(app.server, { db, authConfig, appLink: '' });
+  const newShoe = () => [...script.split(/\s+/).filter(Boolean).map(card), ...Array.from({ length: 312 }, () => card('2C'))];
+  const io = attachRealtime(app.server, { db, authConfig, appLink: '', newShoe });
   await app.listen({ port: 0, host: '127.0.0.1' });
   cleanups.push(() => io.close(), () => app.close());
   const { port } = app.server.address() as AddressInfo;
@@ -33,13 +36,15 @@ async function setup() {
     return socket;
   };
   const created = await app.inject({ method: 'POST', url: '/api/tables', headers: { authorization: 'dev 1' } });
-  return { client, code: created.json().code as string };
+  return { client, db, code: created.json().code as string };
 }
 
 const join = (socket: Client, code: string) =>
   new Promise<Ack<{ snapshot: TableSnapshot }>>((resolve) => socket.emit('table:join', code, resolve));
 const sit = (socket: Client, seat: number, force = false) =>
   new Promise<Ack>((resolve) => socket.emit('seat:take', seat, force, resolve));
+const bet = (socket: Client, amount: number) => new Promise<Ack>((resolve) => socket.emit('game:bet', amount, resolve));
+const act = (socket: Client, action: BjAction) => new Promise<Ack>((resolve) => socket.emit('game:action', action, resolve));
 const snapshotWhere = (socket: Client, matches: (snapshot: TableSnapshot) => boolean) =>
   new Promise<TableSnapshot>((resolve) => {
     const listener = (snapshot: TableSnapshot) => {
@@ -124,5 +129,47 @@ describe('realtime tables', () => {
     raw.emit('seat:leave', 1, 2, 3);
     expect(await join(socket, code)).toMatchObject({ ok: true });
     expect(await sit(socket, 1)).toEqual({ ok: true });
+  });
+
+  it('plays a round of blackjack between two players and moves the chips', async () => {
+    // Игрок 1: 10 + 9, игрок 2: 10 + 6, дилер: 10 + 7.
+    const { client, code, db } = await setup('10S 10D 10H 9S 6D 7H');
+    const first = client('dev 1');
+    const second = client('dev 2');
+    await join(first, code);
+    await join(second, code);
+    await sit(first, 0);
+    await sit(second, 1);
+
+    const firstBalance = new Promise<number>((resolve) => first.on('balance', resolve));
+    const secondBalance = new Promise<number>((resolve) => second.on('balance', resolve));
+    const result = snapshotWhere(second, (s) => s.game.phase === 'result');
+
+    expect(await bet(first, 100)).toEqual({ ok: true });
+    expect(await bet(second, 50)).toEqual({ ok: true });
+    expect(await act(second, 'stand')).toEqual({ ok: false, error: 'not_your_turn' });
+    expect(await act(first, 'stand')).toEqual({ ok: true });
+    expect(await act(second, 'stand')).toEqual({ ok: true });
+
+    expect(await firstBalance).toBe(1100);
+    expect(await secondBalance).toBe(950);
+    expect((await result).game.seats.slice(0, 2).map((seat) => seat?.net)).toEqual([100, -50]);
+    expect(db.prepare('SELECT id, balance FROM users ORDER BY id').all()).toEqual([
+      { id: 1, balance: 1100 },
+      { id: 2, balance: 950 },
+    ]);
+  });
+
+  it('rejects malformed game messages', async () => {
+    const { client, code } = await setup();
+    const socket = client('dev 1');
+    await join(socket, code);
+    await sit(socket, 0);
+    const raw = socket as unknown as { emit: (...args: unknown[]) => void };
+    raw.emit('game:bet', '100');
+    raw.emit('game:action', 'cheat', 'not a function');
+    expect(await bet(socket, '100' as unknown as number)).toEqual({ ok: false, error: 'bad_bet' });
+    expect(await act(socket, 'cheat' as BjAction)).toEqual({ ok: false, error: 'not_allowed' });
+    expect(await bet(socket, 100)).toEqual({ ok: true });
   });
 });

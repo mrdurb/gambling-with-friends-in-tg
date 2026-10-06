@@ -1,9 +1,12 @@
+import { randomInt } from 'node:crypto';
 import type { Server as HttpServer } from 'node:http';
-import type { ClientToServerEvents, Me, PlayerInfo, ServerToClientEvents } from '@casino/shared';
+import type { BjAction, Card, ClientToServerEvents, Me, PlayerInfo, ServerToClientEvents } from '@casino/shared';
 import { Server, type Socket } from 'socket.io';
 import { authenticate, type AuthConfig } from './auth.ts';
 import type { Db } from './db.ts';
+import { shuffledShoe } from './games/blackjack.ts';
 import { Rooms } from './rooms.ts';
+import { balanceOf, settleRound } from './rounds.ts';
 import { findTable, recordVisit } from './tables.ts';
 import { upsertUser } from './users.ts';
 
@@ -11,18 +14,28 @@ interface Deps {
   db: Db;
   authConfig: AuthConfig;
   appLink: string;
+  // Подмена башмака в тестах; по умолчанию — честная перетасовка.
+  newShoe?: () => Card[];
 }
 
 type Io = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, { user: Me }>;
 type Client = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, never>, { user: Me }>;
 
+const ACTIONS: BjAction[] = ['hit', 'stand', 'double', 'split'];
+
 const toPlayerInfo = ({ id, firstName, lastName, photoUrl }: Me): PlayerInfo => ({ id, firstName, lastName, photoUrl });
 
 // Сокеты поверх Rooms: авторизация, одно подключение на игрока, рассылка снимков по комнатам.
-export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink }: Deps): Io {
+export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink, newShoe }: Deps): Io {
   const io: Io = new Server(httpServer);
-  const rooms = new Rooms((snapshot) => io.to(snapshot.table.code).emit('table:snapshot', snapshot));
   const connections = new Map<number, Client>();
+  const rooms = new Rooms({
+    broadcast: (snapshot) => io.to(snapshot.table.code).emit('table:snapshot', snapshot),
+    balanceOf: (userId) => balanceOf(db, userId),
+    settle: (tableCode, results) => settleRound(db, tableCode, 'blackjack', results),
+    notifyBalance: (userId, balance) => connections.get(userId)?.emit('balance', balance),
+    newShoe: newShoe ?? (() => shuffledShoe(randomInt)),
+  });
 
   io.use((socket, next) => {
     try {
@@ -68,6 +81,16 @@ export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink
     });
 
     socket.on('seat:leave', () => rooms.stand(user.id));
+
+    socket.on('game:bet', (amount, ack) => {
+      if (typeof ack !== 'function') return;
+      ack(typeof amount === 'number' ? rooms.bet(user.id, amount) : { ok: false, error: 'bad_bet' });
+    });
+
+    socket.on('game:action', (action, ack) => {
+      if (typeof ack !== 'function') return;
+      ack(ACTIONS.includes(action) ? rooms.act(user.id, action) : { ok: false, error: 'not_allowed' });
+    });
 
     socket.on('disconnect', () => {
       // Вытесненное подключение не должно снимать игрока со стола: за него уже отвечает новое.

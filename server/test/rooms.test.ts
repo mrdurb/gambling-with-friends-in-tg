@@ -8,7 +8,13 @@ const player = (id: number): PlayerInfo => ({ id, firstName: `Игрок ${id}`,
 
 function setup() {
   const sent: TableSnapshot[] = [];
-  const rooms = new Rooms((snapshot) => sent.push(snapshot));
+  const rooms = new Rooms({
+    broadcast: (snapshot) => sent.push(snapshot),
+    balanceOf: () => 1000,
+    settle: () => new Map(),
+    notifyBalance: () => {},
+    newShoe: () => [],
+  });
   const last = (code: string) => sent.filter((s) => s.table.code === code).at(-1)!;
   return { rooms, sent, last };
 }

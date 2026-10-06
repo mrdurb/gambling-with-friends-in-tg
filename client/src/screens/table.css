@@ -1,0 +1,208 @@
+.tbl {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  color: var(--tgui--text_color);
+  font-size: 14px;
+}
+
+.tbl button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--tgui--secondary_fill);
+  cursor: pointer;
+}
+
+.tbl button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.tbl button.primary {
+  background: var(--tgui--button_color);
+  color: var(--tgui--button_text_color);
+  font-weight: 600;
+}
+
+.tbl button.link {
+  padding: 4px 6px;
+  background: none;
+  color: var(--tgui--link_color);
+}
+
+.tbl-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--tgui--bg_color);
+}
+
+.tbl-head .name {
+  flex: 1;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.tbl-notice {
+  padding: 6px 12px;
+  text-align: center;
+  color: var(--tgui--hint_color);
+}
+
+.dealer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 86px;
+  padding: 12px;
+}
+
+.hint {
+  color: var(--tgui--hint_color);
+  font-size: 12px;
+}
+
+.cards {
+  display: flex;
+  gap: 3px;
+  min-height: 38px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 38px;
+  border-radius: 4px;
+  background: #fff;
+  color: #1c1c1e;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.1;
+  animation: card-in 0.18s ease-out;
+}
+
+.card.red {
+  color: #d92d20;
+}
+
+.card.back {
+  background: var(--tgui--button_color);
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+.seats {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(3, 1fr);
+  align-content: start;
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+
+.seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 128px;
+  padding: 8px 4px;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: var(--tgui--bg_color);
+}
+
+.seat.turn {
+  border-color: var(--tgui--link_color);
+}
+
+.seat.offline {
+  opacity: 0.5;
+}
+
+.seat .who {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.hand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.hand.active .cards {
+  outline: 2px solid var(--tgui--link_color);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.net-win {
+  color: var(--tgui--green, #31b545);
+  font-weight: 700;
+}
+
+.net-lose {
+  color: var(--tgui--destructive_text_color);
+  font-weight: 700;
+}
+
+.panel {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  background: var(--tgui--bg_color);
+  border-top: 1px solid var(--tgui--divider);
+}
+
+.panel .row {
+  display: flex;
+  gap: 6px;
+}
+
+.panel .row > button {
+  flex: 1;
+}
+
+.panel .status {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chips {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+.tbl button.chip {
+  padding: 10px 0;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 13px;
+}
