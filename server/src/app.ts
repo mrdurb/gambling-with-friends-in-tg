@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { AuthError, authenticate, type AuthConfig } from './auth.ts';
@@ -19,7 +20,7 @@ export function buildApp(db: Db, authConfig: AuthConfig, staticDir?: string): Fa
     return upsertUser(db, user);
   });
 
-  if (staticDir) app.register(fastifyStatic, { root: staticDir });
+  if (staticDir) app.register(fastifyStatic, { root: resolve(staticDir) });
 
   return app;
 }

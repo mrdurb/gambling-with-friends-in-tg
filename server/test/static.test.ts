@@ -1,6 +1,6 @@
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { openDb } from '../src/db.ts';
@@ -40,6 +40,13 @@ describe('serving the built client', () => {
   it('does not serve files outside the client directory', async () => {
     const res = await setup().inject({ url: '/../package.json' });
     expect(res.statusCode).toBe(404);
+  });
+
+  it('accepts a directory given relative to the working directory', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'casino-static-'));
+    writeFileSync(join(dir, 'index.html'), 'relative ok');
+    const app = buildApp(openDb(':memory:'), { botToken: '', devAuth: true }, relative(process.cwd(), dir));
+    expect((await app.inject({ url: '/' })).body).toBe('relative ok');
   });
 
   it('serves no static files when no directory is given', async () => {
