@@ -1,0 +1,21 @@
+{
+  "name": "@casino/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../.env src/main.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@casino/shared": "*",
+    "@tma.js/init-data-node": "^2.0.8",
+    "fastify": "^5.12.5",
+    "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.1",
+    "vitest": "^5.0.3"
+  }
+}
