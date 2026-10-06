@@ -1,5 +1,6 @@
 import type { Me } from '@casino/shared';
 import { Avatar, Cell, List, Section } from '@telegram-apps/telegram-ui';
+import { formatChips } from '../format.ts';
 
 const GAMES = [
   { id: 'blackjack', title: 'Блэкджек', available: true },
@@ -11,14 +12,19 @@ function initials(me: Me): string {
   return (me.firstName[0] ?? '') + (me.lastName?.[0] ?? '');
 }
 
-export function Lobby({ me }: { me: Me }) {
+interface Props {
+  me: Me;
+  onOpenCashier: () => void;
+}
+
+export function Lobby({ me, onOpenCashier }: Props) {
   const name = [me.firstName, me.lastName].filter(Boolean).join(' ');
   return (
     <List>
       <Section>
         <Cell
           before={<Avatar size={48} src={me.photoUrl ?? undefined} acronym={initials(me)} />}
-          subtitle={`${me.balance.toLocaleString('ru-RU')} фишек`}
+          subtitle={`${formatChips(me.balance)} фишек`}
         >
           {name}
         </Cell>
@@ -31,7 +37,7 @@ export function Lobby({ me }: { me: Me }) {
         ))}
       </Section>
       <Section>
-        <Cell>Касса</Cell>
+        <Cell onClick={onOpenCashier}>Касса</Cell>
         <Cell>Рейтинг</Cell>
       </Section>
     </List>
