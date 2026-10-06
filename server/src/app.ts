@@ -8,7 +8,7 @@ export function buildApp(db: Db, authConfig: AuthConfig): FastifyInstance {
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof AuthError) return reply.code(401).send({ error: 'unauthorized' });
-    app.log.error(error);
+    console.error(error);
     return reply.code(500).send({ error: 'internal' });
   });
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { openDb } from '../src/db.ts';
 
@@ -43,5 +43,20 @@ describe('GET /api/me', () => {
     const res = await app.inject({ url: '/api/me' });
     expect(res.statusCode).toBe(401);
     expect(res.json()).toEqual({ error: 'unauthorized' });
+  });
+});
+
+describe('unexpected errors', () => {
+  it('answers 500 and logs the cause', async () => {
+    const { app, db } = setup();
+    db.exec('DROP TABLE users');
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const res = await app.inject({ url: '/api/me', headers: { authorization: 'dev 1' } });
+
+    expect(res.statusCode).toBe(500);
+    expect(res.json()).toEqual({ error: 'internal' });
+    expect(String(logged.mock.calls[0]?.[0])).toMatch(/no such table/);
+    logged.mockRestore();
   });
 });
