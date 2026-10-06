@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { fetchMe, UnauthorizedError } from './api.ts';
 import { Cashier } from './screens/Cashier.tsx';
 import { Lobby } from './screens/Lobby.tsx';
+import { Rating } from './screens/Rating.tsx';
+import { Stats } from './screens/Stats.tsx';
 import { Table } from './screens/Table.tsx';
 import { Tables } from './screens/Tables.tsx';
 import { getStartTableCode } from './telegram.ts';
@@ -13,7 +15,9 @@ type Screen =
   // back — куда вернуться из кассы (в лобби или за стол).
   | { name: 'cashier'; back: Screen }
   | { name: 'tables' }
-  | { name: 'table'; code: string };
+  | { name: 'table'; code: string }
+  | { name: 'rating' }
+  | { name: 'stats'; userId: number; back: Screen };
 
 type State =
   | { status: 'loading' }
@@ -72,10 +76,22 @@ export function App() {
               onBack={() => setScreen({ name: 'tables' })}
             />
           );
+        case 'rating':
+          return (
+            <Rating
+              meId={me.id}
+              onOpenPlayer={(userId) => setScreen({ name: 'stats', userId, back: screen })}
+              onBack={() => setScreen({ name: 'lobby' })}
+            />
+          );
+        case 'stats':
+          return <Stats userId={screen.userId} onBack={() => setScreen(screen.back)} />;
         case 'lobby':
           return (
             <Lobby
               me={me}
+              onOpenRating={() => setScreen({ name: 'rating' })}
+              onOpenMyStats={() => setScreen({ name: 'stats', userId: me.id, back: screen })}
               onOpenCashier={() => setScreen({ name: 'cashier', back: screen })}
               onOpenGame={() => setScreen({ name: 'tables' })}
             />

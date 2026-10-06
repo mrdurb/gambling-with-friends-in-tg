@@ -159,3 +159,39 @@ export interface ReactionEvent {
   userId: number;
   reaction: Reaction;
 }
+
+// ── Рейтинг и статистика ─────────────────────────────────────────────────
+
+export interface RatingRow {
+  player: PlayerInfo;
+  won: number;
+  lost: number;
+  net: number;
+}
+
+// Доли (winRate, bustRate, doublesWonRate) — числа от 0 до 1.
+export interface BlackjackStats {
+  won: number;
+  lost: number;
+  net: number;
+  rounds: number;
+  wins: number;
+  losses: number;
+  pushes: number;
+  winRate: number;
+  blackjacks: number;
+  bustRate: number;
+  biggestWin: number;
+  biggestBet: number;
+  longestWinStreak: number;
+  longestLoseStreak: number;
+  doubles: number;
+  doublesWonRate: number;
+  cashierVisits: number;
+  cashierTotal: number;
+}
+
+export interface PlayerStats {
+  player: PlayerInfo;
+  blackjack: BlackjackStats;
+}

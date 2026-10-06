@@ -13,15 +13,19 @@ interface Props {
   me: Me;
   onOpenCashier: () => void;
   onOpenGame: () => void;
+  onOpenRating: () => void;
+  onOpenMyStats: () => void;
 }
 
-export function Lobby({ me, onOpenCashier, onOpenGame }: Props) {
+export function Lobby({ me, onOpenCashier, onOpenGame, onOpenRating, onOpenMyStats }: Props) {
   return (
     <List>
       <Section>
         <Cell
           before={<PlayerAvatar player={me} size={48} />}
           subtitle={`${formatChips(me.balance)} фишек`}
+          after="Статистика"
+          onClick={onOpenMyStats}
         >
           {playerName(me)}
         </Cell>
@@ -40,7 +44,7 @@ export function Lobby({ me, onOpenCashier, onOpenGame }: Props) {
       </Section>
       <Section>
         <Cell onClick={onOpenCashier}>Касса</Cell>
-        <Cell>Рейтинг</Cell>
+        <Cell onClick={onOpenRating}>Рейтинг</Cell>
       </Section>
     </List>
   );

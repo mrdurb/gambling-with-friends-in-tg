@@ -1,4 +1,4 @@
-import type { Me, TableInfo } from '@casino/shared';
+import type { Me, PlayerStats, RatingRow, TableInfo } from '@casino/shared';
 import { getAuthHeader } from './telegram.ts';
 
 export class UnauthorizedError extends Error {}
@@ -31,3 +31,5 @@ export const fetchMe = () => request<Me>('/api/me');
 export const withdrawFromCashier = (amount: number) => request<{ balance: number }>('/api/cashier', { amount });
 export const fetchMyTables = () => request<TableInfo[]>('/api/tables');
 export const createTable = () => request<TableInfo>('/api/tables', {});
+export const fetchRating = () => request<RatingRow[]>('/api/rating');
+export const fetchStats = (userId: number) => request<PlayerStats>(`/api/stats/${userId}`);

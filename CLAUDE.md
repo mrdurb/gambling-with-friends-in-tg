@@ -15,6 +15,17 @@
 - Данным с клиента верить нельзя: сервер получает строку `initData` и проверяет `hash` — HMAC-SHA256 от data-check-string с ключом HMAC-SHA256(bot_token, "WebAppData"); дополнительно проверять свежесть `auth_date` (раздел «Validating data received via the Mini App»; готовая реализация — `tma-js/packages/tma-js-init-data-node/validating.md`).
 - Регистрация: бот через `/newbot` в @BotFather, приложение — `/newapp` (прямая ссылка `t.me/<bot>/<app>`) или настройка Main Mini App (`tma-js/platform/creating-new-app.md`).
 
+## Устройство
+
+Спецификация — `docs/superpowers/specs/2026-10-07-casino-blackjack-design.md`; решения по этапам и отступления от неё — `docs/superpowers/plans/`.
+
+- `shared/src/index.ts` — все общие типы, константы (лимиты, таймеры, реакции) и события сокета.
+- `server/src/`: `auth.ts` (кто игрок), `wallet.ts` (единственное место, где меняется баланс; журнал `ledger`), `rounds.ts` (расчёт раунда одной транзакцией), `tables.ts` (столы в базе), `rooms.ts` (живое состояние столов: места, фазы, таймеры, пропуски — без сокетов и базы), `games/blackjack.ts` (правила как чистая машина состояний по номерам мест), `realtime.ts` (Socket.IO поверх `rooms`, чат и реакции), `stats.ts` (рейтинг и статистика из `round_results` и `ledger`), `app.ts` (HTTP API).
+- `client/src/`: `App.tsx` (экраны и переходы), `realtime.ts` (подключение и хук `useTable`), `screens/Table.tsx` (стол, своя вёрстка в `table.css`), остальные экраны — на `@telegram-apps/telegram-ui`.
+- Баланс в базе меняется один раз за раздачу, при расчёте; ставки до этого живут только в памяти стола. Перезапуск сервера посреди раздачи её аннулирует.
+- Чат и реакции не сохраняются нигде.
+- Вторая игра: реализовать правила рядом с `games/blackjack.ts` и научить `rooms.ts` выбирать игру по `table.game` (сейчас он создаёт `Blackjack` напрямую); кошелёк, столы, чат, реакции и рейтинг менять не нужно, статистике нужна своя функция по `details`.
+
 ## Команды
 
 - `npm run dev` — сервер (:3000) и клиент (:5173) с перезапуском при изменениях. Нужен `.env` (образец — `.env.example`).

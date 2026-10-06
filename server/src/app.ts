@@ -4,6 +4,7 @@ import type { Me } from '@casino/shared';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { AuthError, authenticate, type AuthConfig } from './auth.ts';
 import type { Db } from './db.ts';
+import { findPlayer, getBlackjackStats, getRating } from './stats.ts';
 import { createTable, findTable, listVisitedTables, recordVisit } from './tables.ts';
 import { upsertUser } from './users.ts';
 import { WalletError, withdrawFromCashier } from './wallet.ts';
@@ -54,6 +55,19 @@ export function buildApp(db: Db, authConfig: AuthConfig, options: AppOptions = {
     if (!table) return reply.code(404).send({ error: 'not_found' });
     recordVisit(db, table.code, me.id);
     return table;
+  });
+
+  app.get('/api/rating', async (request) => {
+    currentUser(request);
+    return getRating(db);
+  });
+
+  app.get('/api/stats/:userId', async (request, reply) => {
+    currentUser(request);
+    const raw = (request.params as { userId: string }).userId;
+    const player = /^\d{1,16}$/.test(raw) ? findPlayer(db, Number(raw)) : null;
+    if (!player) return reply.code(404).send({ error: 'not_found' });
+    return { player, blackjack: getBlackjackStats(db, player.id) };
   });
 
   if (staticDir) app.register(fastifyStatic, { root: resolve(staticDir) });
