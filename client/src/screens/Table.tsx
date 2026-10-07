@@ -122,6 +122,7 @@ export function Table({ code, me, onBalance, onOpenCashier, onBack }: Props) {
       {head(snapshot.table.name, invite)}
       {status === 'offline' && <div className="tbl-notice">Переподключение…</div>}
       {notice && <div className="tbl-notice">{notice}</div>}
+      {game.shoeReshuffled && <div className="tbl-notice">Колода перетасована: в игре снова все шесть колод.</div>}
 
       <div className="dealer">
         <span className="hint">Дилер{game.dealer.cards.length > 0 ? ` · ${game.dealer.total}` : ''}</span>

@@ -79,6 +79,8 @@ export class Blackjack {
   private shoe: Card[] = [];
   private dealer: Card[] = [];
   private holeHidden = false;
+  // Текущая раздача началась с заново перетасованного башмака.
+  private reshuffled = false;
   private readonly seats = new Map<number, SeatState>();
   private turn: { seat: number; hand: number } | null = null;
 
@@ -122,7 +124,8 @@ export class Blackjack {
 
   start(): void {
     if (this.phase !== 'betting') return;
-    if (this.shoe.length < RESHUFFLE_BELOW) this.shoe = this.newShoe();
+    this.reshuffled = this.shoe.length < RESHUFFLE_BELOW;
+    if (this.reshuffled) this.shoe = this.newShoe();
 
     const order = [...this.seats.keys()].sort((a, b) => a - b);
     for (const seat of order) {
@@ -228,6 +231,7 @@ export class Blackjack {
     this.seats.clear();
     this.dealer = [];
     this.holeHidden = false;
+    this.reshuffled = false;
     this.turn = null;
   }
 
@@ -248,6 +252,7 @@ export class Blackjack {
       }),
       turn: this.turn && { ...this.turn, actions: this.actions(freeBalance) },
       timeLeftMs,
+      shoeReshuffled: this.reshuffled,
     };
   }
 

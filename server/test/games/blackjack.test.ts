@@ -362,6 +362,28 @@ describe('between rounds', () => {
     expect(shuffles()).toBeGreaterThan(1);
   });
 
+  it('announces a reshuffled shoe for exactly the round that starts with it', () => {
+    const { bj, shuffles } = game('');
+    const flags: boolean[] = [];
+    const playRound = () => {
+      bj.bet(0, 5, RICH);
+      expect(bj.view(6, 0, null).shoeReshuffled).toBe(false);
+      bj.start();
+      flags.push(bj.view(6, RICH, null).shoeReshuffled);
+      while (bj.phase === 'playing') bj.act(0, 'hit', RICH);
+      // Пометка держится до конца раздачи, включая показ результата.
+      expect(bj.view(6, 0, null).shoeReshuffled).toBe(flags.at(-1));
+      bj.reset();
+      expect(bj.view(6, 0, null).shoeReshuffled).toBe(false);
+    };
+    for (let i = 0; i < 40; i++) playRound();
+
+    expect(flags[0]).toBe(true);
+    expect(flags[1]).toBe(false);
+    expect(flags.filter(Boolean)).toHaveLength(shuffles());
+    expect(shuffles()).toBeGreaterThan(1);
+  });
+
   it('shows the bet before the cards are dealt', () => {
     const { bj } = game('');
     bj.bet(2, 75, RICH);

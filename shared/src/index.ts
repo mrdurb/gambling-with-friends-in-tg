@@ -127,6 +127,8 @@ export interface BjView {
   turn: { seat: number; hand: number; actions: BjAction[] } | null;
   // Сколько миллисекунд осталось до конца текущего таймера (ставки, ход, показ результата).
   timeLeftMs: number | null;
+  // true в течение раздачи, которая началась с заново перетасованного башмака.
+  shoeReshuffled: boolean;
 }
 
 export interface BjDetails {
