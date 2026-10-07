@@ -27,6 +27,8 @@ interface Seat {
   leaving: boolean;
   // Пропуски подряд: не поставил или не походил вовремя.
   misses: number;
+  // В текущей раздаче пропуск хода уже засчитан (после сплита рук две, а пропуск один).
+  timedOut: boolean;
 }
 
 interface Room {
@@ -115,7 +117,7 @@ export class Rooms {
     if (room.seats[index]) return fail('seat_taken');
 
     if (elsewhere) this.leaveSeat(elsewhere, userId);
-    room.seats[index] = { player: room.present.get(userId)!, connected: true, leaving: false, misses: 0 };
+    room.seats[index] = { player: room.present.get(userId)!, connected: true, leaving: false, misses: 0, timedOut: false };
     this.seatedAt.set(userId, room.table.code);
     this.publish(room);
     return { ok: true };
@@ -131,7 +133,7 @@ export class Rooms {
     if (!place) return fail('not_seated');
     const { room, index, seat } = place;
 
-    const result = room.game.bet(index, amount, this.deps.balanceOf(userId));
+    const result = room.game.bet(index, amount, this.freeBalance(userId));
     if (!result.ok) return result;
     seat.misses = 0;
     if (room.game.betCount() === 1) this.setTimer(room, BET_MS, () => this.startRound(room));
@@ -144,7 +146,7 @@ export class Rooms {
     if (!place) return fail('not_seated');
     const { room, index, seat } = place;
 
-    const result = room.game.act(index, action, this.freeBalance(room, index));
+    const result = room.game.act(index, action, this.freeBalance(userId));
     if (!result.ok) return result;
     seat.misses = 0;
     this.afterMove(room);
@@ -172,9 +174,16 @@ export class Rooms {
     return room.seats.find((seat) => seat?.player.id === userId) ?? null;
   }
 
-  private freeBalance(room: Room, index: number): number {
-    const seat = room.seats[index];
-    return seat ? this.deps.balanceOf(seat.player.id) - room.game.stake(index) : 0;
+  // Баланс за вычетом всего, что у игрока сейчас на кону, — в том числе за столом,
+  // из-за которого он встал посреди раздачи. Рассчитанные раздачи уже учтены в балансе.
+  private freeBalance(userId: number): number {
+    let staked = 0;
+    for (const room of this.rooms.values()) {
+      if (room.game.phase === 'result') continue;
+      const index = room.seats.findIndex((seat) => seat?.player.id === userId);
+      if (index !== -1) staked += room.game.stake(index);
+    }
+    return this.deps.balanceOf(userId) - staked;
   }
 
   // Игрок уходит с места: сразу, если не участвует в раздаче, иначе — после её расчёта.
@@ -189,8 +198,11 @@ export class Rooms {
       seat.leaving = true;
       clearTimeout(seat.release);
       if (game.phase === 'playing') {
+        // Чужой уход не трогает таймер того, кто сейчас ходит.
+        const ownTurn = game.currentSeat() === index;
         game.forfeit(index);
-        this.afterMove(room);
+        if (ownTurn) this.afterMove(room);
+        else this.publish(room);
       } else {
         this.publish(room);
       }
@@ -220,7 +232,9 @@ export class Rooms {
 
   private startRound(room: Room): void {
     room.seats.forEach((seat, index) => {
-      if (seat && !room.game.hasBet(index)) seat.misses += 1;
+      if (!seat) return;
+      seat.timedOut = false;
+      if (!room.game.hasBet(index)) seat.misses += 1;
     });
     room.game.start();
     this.afterMove(room);
@@ -232,7 +246,10 @@ export class Rooms {
       this.setTimer(room, TURN_MS, () => {
         const index = room.game.timeout();
         const seat = index === null ? null : room.seats[index];
-        if (seat) seat.misses += 1;
+        if (seat && !seat.timedOut) {
+          seat.timedOut = true;
+          seat.misses += 1;
+        }
         this.afterMove(room);
       });
       this.publish(room);
@@ -249,8 +266,11 @@ export class Rooms {
     try {
       for (const [userId, balance] of this.deps.settle(room.table.code, results)) this.deps.notifyBalance(userId, balance);
     } catch (error) {
-      // Раунд не записался — фишки ни у кого не изменились; стол продолжает работать.
+      // Раунд не записался — фишки ни у кого не изменились. Раздача аннулируется сразу,
+      // чтобы стол не показывал выигрыши, которых никто не получил.
       console.error('round settlement failed', error);
+      this.endResult(room);
+      return;
     }
     this.setTimer(room, RESULT_MS, () => this.endResult(room));
     this.publish(room);
@@ -282,11 +302,11 @@ export class Rooms {
     const turnSeat = room.game.currentSeat();
     const snapshot: TableSnapshot = {
       table: room.table,
-      seats: room.seats.map((seat) => seat && { player: seat.player, connected: seat.connected }),
+      seats: room.seats.map((seat) => seat && { player: seat.player, connected: seat.connected, leaving: seat.leaving }),
       spectators: room.present.size - seated,
       game: room.game.view(
         SEATS,
-        turnSeat === null ? 0 : this.freeBalance(room, turnSeat),
+        turnSeat === null ? 0 : this.freeBalance(room.seats[turnSeat]!.player.id),
         room.timer && Math.max(0, room.timer.endsAt - Date.now()),
       ),
     };

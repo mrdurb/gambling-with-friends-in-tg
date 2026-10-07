@@ -173,20 +173,58 @@ describe('playing a round', () => {
   });
 
   it('returns to waiting without paying anyone if the round cannot be saved', () => {
-    const { rooms, last, notified, breakSettle } = start();
+    const { rooms, last, sent, notified, breakSettle } = start();
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
     breakSettle();
     rooms.act(1, 'stand');
     rooms.act(2, 'stand');
     expect(notified).toEqual([]);
-    vi.advanceTimersByTime(RESULT_MS);
+    // Раздача аннулируется сразу: выигрыши, которые никто не получил, не показываются.
     expect(last().game.phase).toBe('waiting');
+    expect(sent.some((snapshot) => snapshot.game.phase === 'result')).toBe(false);
     expect(logged).toHaveBeenCalled();
     logged.mockRestore();
   });
 });
 
 describe('leaving and skipping', () => {
+  it('keeps the chips staked at a table the player left mid-round out of reach at another table', () => {
+    const { rooms, last } = setup();
+    rooms.bet(1, 1000);
+    rooms.bet(2, 50);
+    rooms.enter(other, player(1));
+    rooms.sit(1, 0, true);
+    expect(last().seats[0]).toMatchObject({ leaving: true });
+    expect(rooms.bet(1, 5)).toEqual({ ok: false, error: 'insufficient' });
+
+    rooms.act(2, 'stand'); // 19 против 17 — игрок 1 выигрывает 1000, раздача рассчитана
+    expect(rooms.bet(1, 2000)).toEqual({ ok: true });
+  });
+
+  it('counts timeouts on both split hands as one skipped round', () => {
+    const { rooms, last } = setup({ script: '8S 10D 10H 8D 6D 7H' });
+    rooms.bet(1, 5);
+    rooms.bet(2, 5);
+    rooms.act(1, 'split');
+    vi.advanceTimersByTime(TURN_MS);
+    vi.advanceTimersByTime(TURN_MS);
+    expect(last().game.turn).toMatchObject({ seat: 1 });
+    rooms.act(2, 'stand');
+    vi.advanceTimersByTime(RESULT_MS);
+    expect(last().seats[0]?.player.id).toBe(1);
+  });
+
+  it('does not restart the turn clock when another player leaves', () => {
+    const { rooms, last } = setup();
+    rooms.bet(1, 100);
+    rooms.bet(2, 50);
+    vi.advanceTimersByTime(TURN_MS - 1000);
+    rooms.stand(2);
+    expect(last().game).toMatchObject({ turn: { seat: 0 }, timeLeftMs: 1000 });
+    vi.advanceTimersByTime(1000);
+    expect(last().game.phase).toBe('result');
+  });
+
   it('plays out the hand of a player who stands up mid-round and frees the seat after the result', () => {
     const { rooms, last, settled } = setup();
     rooms.bet(1, 100);

@@ -1,4 +1,5 @@
 import type { AddressInfo } from 'node:net';
+import { CHAT_RATE_LIMIT } from '@casino/shared';
 import type {
   Ack,
   BjAction,
@@ -91,6 +92,7 @@ describe('realtime tables', () => {
     expect((await seen).seats[4]).toEqual({
       player: { id: 1, firstName: 'Игрок 1', lastName: null, photoUrl: null },
       connected: true,
+      leaving: false,
     });
   });
 
@@ -230,6 +232,16 @@ describe('realtime tables', () => {
     expect(await say(socket, 'я'.repeat(201))).toEqual({ ok: false, error: 'bad_message' });
     expect(await say(socket, 42 as unknown as string)).toEqual({ ok: false, error: 'bad_message' });
     expect(await say(socket, 'я'.repeat(200))).toEqual({ ok: true });
+  });
+
+  it('limits how often one player can write to the table', async () => {
+    const { client, code } = await setup();
+    const socket = client('dev 1');
+    await join(socket, code);
+    await sit(socket, 0);
+    for (let i = 0; i < CHAT_RATE_LIMIT; i++) expect(await say(socket, `сообщение ${i}`)).toEqual({ ok: true });
+    expect(await say(socket, 'лишнее')).toEqual({ ok: false, error: 'too_fast' });
+    expect(await react(socket, '🎉')).toEqual({ ok: false, error: 'too_fast' });
   });
 
   it('shows a reaction from a seated player to the table and refuses others', async () => {

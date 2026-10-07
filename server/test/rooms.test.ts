@@ -54,7 +54,7 @@ describe('seats', () => {
     const { rooms, last } = setup();
     rooms.enter(tableA, player(1));
     expect(rooms.sit(1, 2)).toEqual({ ok: true });
-    expect(last('AAAAAAAA').seats[2]).toEqual({ player: player(1), connected: true });
+    expect(last('AAAAAAAA').seats[2]).toEqual({ player: player(1), connected: true, leaving: false });
     expect(last('AAAAAAAA').spectators).toBe(0);
   });
 
@@ -107,11 +107,11 @@ describe('losing the connection', () => {
     rooms.sit(1, 0);
 
     rooms.exit(1);
-    expect(last('AAAAAAAA').seats[0]).toEqual({ player: player(1), connected: false });
+    expect(last('AAAAAAAA').seats[0]).toEqual({ player: player(1), connected: false, leaving: false });
 
     vi.advanceTimersByTime(DISCONNECT_GRACE_MS - 1);
     const back = rooms.enter(tableA, player(1));
-    expect(back.seats[0]).toEqual({ player: player(1), connected: true });
+    expect(back.seats[0]).toEqual({ player: player(1), connected: true, leaving: false });
 
     vi.advanceTimersByTime(DISCONNECT_GRACE_MS * 2);
     expect(last('AAAAAAAA').seats[0]?.player.id).toBe(1);

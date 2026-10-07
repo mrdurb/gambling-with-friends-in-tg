@@ -2,6 +2,8 @@ import { randomInt } from 'node:crypto';
 import type { Server as HttpServer } from 'node:http';
 import {
   CHAT_MAX_LENGTH,
+  CHAT_RATE_LIMIT,
+  CHAT_RATE_WINDOW_MS,
   REACTIONS,
   type BjAction,
   type Card,
@@ -101,6 +103,16 @@ export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink
       ack(ACTIONS.includes(action) ? rooms.act(user.id, action) : { ok: false, error: 'not_allowed' });
     });
 
+    // Общий предел частоты для чата и реакций: время последних принятых отправок этого подключения.
+    const sentAt: number[] = [];
+    const tooFast = () => {
+      const now = Date.now();
+      while (sentAt.length && now - sentAt[0]! >= CHAT_RATE_WINDOW_MS) sentAt.shift();
+      if (sentAt.length >= CHAT_RATE_LIMIT) return true;
+      sentAt.push(now);
+      return false;
+    };
+
     // Чат и реакции нигде не сохраняются: проверили и сразу разослали тем, у кого открыт стол.
     socket.on('chat:send', (text, ack) => {
       if (typeof ack !== 'function') return;
@@ -108,6 +120,7 @@ export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink
       if (!code) return ack({ ok: false, error: 'not_at_table' });
       const trimmed = typeof text === 'string' ? text.trim() : '';
       if (!trimmed || [...trimmed].length > CHAT_MAX_LENGTH) return ack({ ok: false, error: 'bad_message' });
+      if (tooFast()) return ack({ ok: false, error: 'too_fast' });
       io.to(code).emit('chat:message', { from: toPlayerInfo(user), text: trimmed, at: Date.now() });
       ack({ ok: true });
     });
@@ -118,6 +131,7 @@ export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink
       if (!code || !rooms.isSeatedAt(user.id, code)) return ack({ ok: false, error: 'not_seated' });
       const value = reaction?.kind === 'emoji' ? reaction.value : null;
       if (!(REACTIONS as readonly unknown[]).includes(value)) return ack({ ok: false, error: 'bad_reaction' });
+      if (tooFast()) return ack({ ok: false, error: 'too_fast' });
       io.to(code).emit('reaction', { userId: user.id, reaction: { kind: 'emoji', value: value as string } });
       ack({ ok: true });
     });

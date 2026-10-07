@@ -1,4 +1,5 @@
 import {
+  CHAT_HISTORY,
   REACTION_MS,
   type Ack,
   type BjAction,
@@ -8,17 +9,26 @@ import {
   type ServerToClientEvents,
   type TableSnapshot,
 } from '@casino/shared';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { getAuthHeader } from './telegram.ts';
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 let socket: Client | null = null;
+let balanceListener: (balance: number) => void = () => {};
+
+// Сервер сообщает новый баланс после расчёта раздачи — в том числе когда игрок уже ушёл с экрана стола.
+export function onBalanceChange(listener: (balance: number) => void): void {
+  balanceListener = listener;
+}
 
 // Одно подключение на всё приложение; создаётся при первом открытии стола.
 function getSocket(): Client {
-  socket ??= io({ auth: { token: getAuthHeader() } });
+  if (!socket) {
+    socket = io({ auth: { token: getAuthHeader() } });
+    socket.on('balance', (balance) => balanceListener(balance));
+  }
   return socket;
 }
 
@@ -29,7 +39,8 @@ window.addEventListener('pageshow', (event) => {
   if (event.persisted) socket?.connect();
 });
 
-export type TableStatus = 'connecting' | 'ready' | 'offline' | 'not_found' | 'kicked';
+// expired — сервер отказал в подключении: данные запуска устарели, приложение нужно открыть заново.
+export type TableStatus = 'connecting' | 'ready' | 'offline' | 'not_found' | 'kicked' | 'expired';
 
 export interface TableConnection {
   status: TableStatus;
@@ -38,8 +49,10 @@ export interface TableConnection {
   stand: () => void;
   bet: (amount: number) => Promise<Ack>;
   act: (action: BjAction) => Promise<Ack>;
-  // Сообщения, пришедшие, пока открыт этот экран стола.
+  // Последние сообщения, пришедшие, пока открыт этот экран стола.
   messages: ChatMessage[];
+  // Сколько сообщений пришло всего, включая уже вытесненные из списка.
+  messageCount: number;
   // Реакции, которые сейчас видны: игрок → эмодзи.
   reactions: Record<number, string>;
   sendChat: (text: string) => Promise<Ack>;
@@ -48,14 +61,12 @@ export interface TableConnection {
   reclaim: () => void;
 }
 
-// onBalance вызывается, когда сервер сообщает новый баланс игрока (после расчёта раздачи).
-export function useTable(code: string, onBalance: (balance: number) => void): TableConnection {
+export function useTable(code: string): TableConnection {
   const [status, setStatus] = useState<TableStatus>('connecting');
   const [snapshot, setSnapshot] = useState<TableSnapshot | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messageCount, setMessageCount] = useState(0);
   const [reactions, setReactions] = useState<Record<number, string>>({});
-  const balanceHandler = useRef(onBalance);
-  balanceHandler.current = onBalance;
 
   useEffect(() => {
     const client = getSocket();
@@ -81,9 +92,16 @@ export function useTable(code: string, onBalance: (balance: number) => void): Ta
     client.on('connect', join);
     client.on('disconnect', onDisconnect);
     client.on('kicked', onKicked);
-    const onBalanceEvent = (balance: number) => balanceHandler.current(balance);
+    // После отказа в авторизации клиент сам не переподключается: ждать нечего.
+    const onConnectError = (error: Error) => {
+      if (error.message === 'unauthorized') setStatus('expired');
+    };
+    client.on('connect_error', onConnectError);
 
-    const onMessage = (message: ChatMessage) => setMessages((list) => [...list, message]);
+    const onMessage = (message: ChatMessage) => {
+      setMessages((list) => [...list, message].slice(-CHAT_HISTORY));
+      setMessageCount((count) => count + 1);
+    };
     const fading = new Map<number, ReturnType<typeof setTimeout>>();
     const onReaction = ({ userId, reaction }: ReactionEvent) => {
       setReactions((current) => ({ ...current, [userId]: reaction.value }));
@@ -94,10 +112,10 @@ export function useTable(code: string, onBalance: (balance: number) => void): Ta
       );
     };
     setMessages([]);
+    setMessageCount(0);
     setReactions({});
 
     client.on('table:snapshot', setSnapshot);
-    client.on('balance', onBalanceEvent);
     client.on('chat:message', onMessage);
     client.on('reaction', onReaction);
     if (client.connected) join();
@@ -107,8 +125,8 @@ export function useTable(code: string, onBalance: (balance: number) => void): Ta
       client.off('connect', join);
       client.off('disconnect', onDisconnect);
       client.off('kicked', onKicked);
+      client.off('connect_error', onConnectError);
       client.off('table:snapshot', setSnapshot);
-      client.off('balance', onBalanceEvent);
       client.off('chat:message', onMessage);
       client.off('reaction', onReaction);
       for (const timer of fading.values()) clearTimeout(timer);
@@ -133,5 +151,5 @@ export function useTable(code: string, onBalance: (balance: number) => void): Ta
     getSocket().connect();
   }, []);
 
-  return { status, snapshot, sit, stand, bet, act, messages, reactions, sendChat, sendReaction, reclaim };
+  return { status, snapshot, sit, stand, bet, act, messages, messageCount, reactions, sendChat, sendReaction, reclaim };
 }

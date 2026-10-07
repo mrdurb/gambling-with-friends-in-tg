@@ -16,25 +16,24 @@ import { useEffect, useRef, useState } from 'react';
 import { Cards } from '../components/Cards.tsx';
 import { Countdown } from '../components/Countdown.tsx';
 import { PlayerAvatar, playerName } from '../components/PlayerAvatar.tsx';
-import { formatChips } from '../format.ts';
+import { formatChips, formatSigned } from '../format.ts';
 import { useTable, type TableConnection } from '../realtime.ts';
 import { shareInvite } from '../telegram.ts';
 
 interface Props {
   code: string;
   me: Me;
-  onBalance: (balance: number) => void;
   onOpenCashier: () => void;
   onBack: () => void;
 }
 
 const ACTION_LABELS: Record<BjAction, string> = { hit: 'Ещё', stand: 'Хватит', double: 'Удвоить', split: 'Сплит' };
 
-const signed = (amount: number) => (amount > 0 ? `+${formatChips(amount)}` : amount < 0 ? `−${formatChips(-amount)}` : 'Ничья');
+const signed = (amount: number) => (amount === 0 ? 'Ничья' : formatSigned(amount));
 const netClass = (amount: number) => (amount > 0 ? 'net-win' : amount < 0 ? 'net-lose' : 'hint');
 
-export function Table({ code, me, onBalance, onOpenCashier, onBack }: Props) {
-  const connection = useTable(code, onBalance);
+export function Table({ code, me, onOpenCashier, onBack }: Props) {
+  const connection = useTable(code);
   const { status, snapshot, sit, stand, reclaim } = connection;
   // Место, на которое игрок хочет пересесть с другого стола; ждёт подтверждения.
   const [moveTo, setMoveTo] = useState<number | null>(null);
@@ -43,10 +42,10 @@ export function Table({ code, me, onBalance, onOpenCashier, onBack }: Props) {
   const [picking, setPicking] = useState(false);
   // Сколько сообщений игрок уже видел (чат был открыт).
   const [seenCount, setSeenCount] = useState(0);
-  const unread = chatOpen ? 0 : connection.messages.length - seenCount;
+  const unread = chatOpen ? 0 : connection.messageCount - seenCount;
   useEffect(() => {
-    if (chatOpen) setSeenCount(connection.messages.length);
-  }, [chatOpen, connection.messages.length]);
+    if (chatOpen) setSeenCount(connection.messageCount);
+  }, [chatOpen, connection.messageCount]);
 
   const head = (title: string, invite?: () => void) => (
     <div className="tbl-head">
@@ -72,6 +71,14 @@ export function Table({ code, me, onBalance, onOpenCashier, onBack }: Props) {
       <div className="tbl">
         {head('Стол не найден')}
         <div className="tbl-notice">Проверьте ссылку или создайте новый стол.</div>
+      </div>
+    );
+  }
+  if (status === 'expired') {
+    return (
+      <div className="tbl">
+        {head('Сеанс устарел')}
+        <div className="tbl-notice">Закройте приложение и откройте его заново из Telegram.</div>
       </div>
     );
   }
@@ -140,7 +147,7 @@ export function Table({ code, me, onBalance, onOpenCashier, onBack }: Props) {
             mine={index === mySeat}
             canSit={mySeat === -1}
             reaction={seat ? connection.reactions[seat.player.id] : undefined}
-            picking={index === mySeat && picking}
+            picking={index === mySeat && picking && !seat?.leaving}
             onAvatar={() => setPicking(!picking)}
             onReact={(value) => {
               connection.sendReaction(value);
@@ -205,7 +212,7 @@ function SeatBox(props: SeatBoxProps) {
   return (
     <div className={classes}>
       <span className="avatar-slot">
-        {mine ? (
+        {mine && !seat.leaving ? (
           <button className="avatar-button" aria-label="Реакция" onClick={onAvatar}>
             <PlayerAvatar player={seat.player} size={32} />
           </button>
@@ -235,10 +242,14 @@ function SeatBox(props: SeatBoxProps) {
         </div>
       ))}
       {hands?.net != null && <span className={netClass(hands.net)}>{signed(hands.net)}</span>}
-      {mine && (
-        <button className="link" onClick={onStand}>
-          Встать
-        </button>
+      {seat.leaving ? (
+        <span className="hint">{mine ? 'Встаёте после раздачи' : 'уходит'}</span>
+      ) : (
+        mine && (
+          <button className="link" onClick={onStand}>
+            Встать
+          </button>
+        )
       )}
     </div>
   );
@@ -256,6 +267,9 @@ function Panel({ snapshot, me, mySeat, connection, onOpenCashier }: PanelProps) 
   const { game } = snapshot;
   const [pending, setPending] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  // Отказ относится к одному действию: со сменой хода или фазы он уже неактуален.
+  useEffect(() => setError(null), [game.phase, game.turn?.seat, game.turn?.hand]);
 
   const mine = mySeat === -1 ? null : game.seats[mySeat];
   const stake = mine?.hands.reduce((sum, hand) => sum + hand.bet, 0) ?? 0;
@@ -342,7 +356,15 @@ function Panel({ snapshot, me, mySeat, connection, onOpenCashier }: PanelProps) 
       {status(error ?? `Ставка: ${formatChips(pending)} (от ${MIN_BET} до ${formatChips(MAX_BET)})`)}
       <div className="chips">
         {CHIP_VALUES.map((value) => (
-          <button key={value} className="chip" disabled={pending + value > limit} onClick={() => setPending(pending + value)}>
+          <button
+            key={value}
+            className="chip"
+            disabled={pending + value > limit}
+            onClick={() => {
+              setError(null);
+              setPending(pending + value);
+            }}
+          >
             {value}
           </button>
         ))}

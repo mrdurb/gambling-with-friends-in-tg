@@ -38,6 +38,8 @@ export interface TableInfo {
 export interface SeatView {
   player: PlayerInfo;
   connected: boolean;
+  // Игрок встал посреди раздачи: место освободится после её расчёта.
+  leaving: boolean;
 }
 
 export interface TableSnapshot {
@@ -141,6 +143,11 @@ export interface BjDetails {
 // ── Чат и реакции ────────────────────────────────────────────────────────
 
 export const CHAT_MAX_LENGTH = 200;
+// Сколько сообщений и реакций один игрок может отправить за окно времени.
+export const CHAT_RATE_LIMIT = 5;
+export const CHAT_RATE_WINDOW_MS = 5000;
+// Сколько последних сообщений чата держит клиент.
+export const CHAT_HISTORY = 200;
 export const REACTIONS = ['😂', '😡', '🎉', '😭', '😎', '🤔', '👍', '🤡'] as const;
 // Сколько реакция видна возле аватарки.
 export const REACTION_MS = 3000;

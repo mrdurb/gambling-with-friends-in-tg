@@ -2,6 +2,7 @@ import type { Me } from '@casino/shared';
 import { Placeholder, Spinner } from '@telegram-apps/telegram-ui';
 import { useEffect, useState } from 'react';
 import { fetchMe, UnauthorizedError } from './api.ts';
+import { onBalanceChange } from './realtime.ts';
 import { Cashier } from './screens/Cashier.tsx';
 import { Lobby } from './screens/Lobby.tsx';
 import { Rating } from './screens/Rating.tsx';
@@ -38,6 +39,9 @@ export function App() {
       (me) => setState({ status: 'ready', me }),
       (error) => setState({ status: error instanceof UnauthorizedError ? 'unauthorized' : 'error' }),
     );
+    onBalanceChange((balance) =>
+      setState((current) => (current.status === 'ready' ? { status: 'ready', me: { ...current.me, balance } } : current)),
+    );
   }, []);
 
   switch (state.status) {
@@ -71,7 +75,6 @@ export function App() {
             <Table
               code={screen.code}
               me={me}
-              onBalance={(balance) => setState({ status: 'ready', me: { ...me, balance } })}
               onOpenCashier={() => setScreen({ name: 'cashier', back: screen })}
               onBack={() => setScreen({ name: 'tables' })}
             />
