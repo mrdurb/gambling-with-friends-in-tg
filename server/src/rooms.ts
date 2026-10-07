@@ -1,6 +1,7 @@
 import type { Ack, Card, GameId, PlayerInfo, TableInfo, TableSnapshot } from '@casino/shared';
 import { BlackjackTable } from './rooms/blackjack-table.ts';
 import { fail, type HostContext, type SeatRegistry, type TableHost } from './rooms/host.ts';
+import { PokerTable } from './rooms/poker-table.ts';
 import { RouletteTable } from './rooms/roulette-table.ts';
 import type { PlayerResult } from './rounds.ts';
 
@@ -20,6 +21,10 @@ export interface RoomDeps {
   spinNumber: () => number;
   // Длительность вращения; в тестах короче настоящей.
   spinMs?: number;
+  // Личное сообщение игроку с его закрытыми картами.
+  sendCards: (userId: number, cards: Card[]) => void;
+  // Перетасованная колода покера: полная или короткая (36 карт).
+  newDeck: (shortDeck: boolean) => Card[];
 }
 
 // Живое состояние столов: у кого какой стол открыт и какой ведущий его ведёт.
@@ -93,6 +98,7 @@ export class Rooms {
           return false;
         }
       },
+      sendCards: this.deps.sendCards,
     };
     const room: Room = { ctx, host: this.host(ctx) };
     return room;
@@ -102,6 +108,8 @@ export class Rooms {
     switch (ctx.table.game) {
       case 'roulette':
         return new RouletteTable(ctx, this.deps.spinNumber, this.deps.spinMs);
+      case 'poker':
+        return new PokerTable(ctx, this.seated, this.deps.newDeck);
       default:
         return new BlackjackTable(ctx, this.seated, this.deps.newShoe);
     }

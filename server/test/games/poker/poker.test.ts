@@ -20,13 +20,14 @@ interface Setup {
 const FILLER = ['2C 7D', '3C 8D', '4C 9D', '2D 8C', '3D 9C', '4D 7C', '2H 7S', '3H 8S', '4H 9S'];
 const DEFAULT_BOARD = 'KS QH JD 5S 5H';
 
-// Колода раздаётся так: игрокам по часовой стрелке от места слева от кнопки — карты подряд, затем борд.
+// Колода раздаётся так: игрокам по часовой стрелке от места слева от кнопки — карты с начала колоды,
+// борд — с её конца.
 function deal({ stacks, button, holes = {}, board = DEFAULT_BOARD, mode = 'nlh', blinds = [5, 10] }: Setup) {
   const seats = Object.keys(stacks).map(Number).sort((a, b) => a - b);
   const dealer = button ?? seats[0]!;
   const from = seats.indexOf(dealer) + 1;
   const order = [...seats.slice(from), ...seats.slice(0, from)];
-  const deck = [...order.flatMap((seat, index) => cards(holes[seat] ?? FILLER[index]!)), ...cards(board)];
+  const deck = [...order.flatMap((seat, index) => cards(holes[seat] ?? FILLER[index]!)), ...cards(board).reverse()];
   return new PokerHand({ mode, blinds }, new Map(seats.map((seat) => [seat, stacks[seat]!])), dealer, deck);
 }
 

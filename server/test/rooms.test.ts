@@ -14,6 +14,8 @@ function setup() {
     balanceOf: () => 1000,
     settle: () => new Map(),
     notifyBalance: () => {},
+    sendCards: () => {},
+    newDeck: () => [],
     spinNumber: () => 0,
     newShoe: () => [],
   }));

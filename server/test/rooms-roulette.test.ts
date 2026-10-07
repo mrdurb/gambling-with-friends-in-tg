@@ -38,6 +38,8 @@ function setup({ numbers = [1], bank = {} as Record<number, number>, players = [
     },
     notifyBalance: (id, balance) => notified.push([id, balance]),
     newShoe: () => Array.from({ length: 312 }, (): Card => ({ rank: '2', suit: 'C' })),
+    sendCards: () => {},
+    newDeck: () => [],
     spinNumber: () => numbers[Math.min(spins++, numbers.length - 1)]!,
   }));
 

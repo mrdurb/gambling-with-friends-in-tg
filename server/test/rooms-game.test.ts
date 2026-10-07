@@ -39,6 +39,8 @@ function setup({ script = '10S 10D 10H 9S 6D 7H', bank = {} as Record<number, nu
       return new Map(results.map((result) => [result.userId, balanceOf(result.userId)]));
     },
     notifyBalance: (id, balance) => notified.push([id, balance]),
+    sendCards: () => {},
+    newDeck: () => [],
     spinNumber: () => 0,
     newShoe: () => [...script.split(/\s+/).filter(Boolean).map(card), ...Array.from({ length: 312 }, () => card('2C'))],
   }));

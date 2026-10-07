@@ -56,7 +56,8 @@ const STREETS: PokerPhase[] = ['preflop', 'flop', 'turn', 'river'];
 
 // Одна раздача холдема как машина состояний по номерам мест. Участники, их стеки, кнопка и колода
 // приходят снаружи; таймеры, пропуски и фишки между раздачами — забота стола.
-// Колода раздаётся подряд: игрокам по часовой стрелке от места слева от кнопки, затем борд.
+// Карманные карты берутся с начала колоды (игрокам по часовой стрелке от места слева от кнопки),
+// общие — с её конца.
 export class PokerHand {
   phase: PokerPhase;
   private readonly seats = new Map<number, Seat>();
@@ -340,7 +341,7 @@ export class PokerHand {
   }
 
   private dealStreet(): void {
-    this.board.push(...this.deck.splice(0, this.board.length === 0 ? 3 : 1));
+    for (let count = this.board.length === 0 ? 3 : 1; count > 0; count--) this.board.push(this.deck.pop()!);
     this.phase = STREETS[STREETS.indexOf(this.phase) + 1]!;
   }
 

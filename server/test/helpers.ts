@@ -1,4 +1,4 @@
-import type { Ack, BjAction, RouletteField } from '@casino/shared';
+import type { Ack, BjAction, PokerActionKind, RouletteField } from '@casino/shared';
 import type { Rooms } from '../src/rooms.ts';
 
 // Короткие имена для действий, которые тесты шлют через общий метод Rooms.action.
@@ -12,5 +12,11 @@ export function drive(rooms: Rooms) {
     rouletteBet: (userId: number, field: RouletteField, amount: number) => act(userId, 'roulette:bet', field, amount),
     rouletteClear: (userId: number) => act(userId, 'roulette:clear'),
     rouletteReady: (userId: number) => act(userId, 'roulette:ready'),
+    pokerSit: (userId: number, seat: number, buyIn: number) => act(userId, 'poker:sit', seat, buyIn),
+    pokerLeave: (userId: number) => void act(userId, 'poker:leave'),
+    pokerRebuy: (userId: number, amount: number) => act(userId, 'poker:rebuy', amount),
+    pokerAct: (userId: number, kind: PokerActionKind, amount?: number) => act(userId, 'poker:action', kind, amount),
+    pokerDiscard: (userId: number, index: number) => act(userId, 'poker:discard', index),
+    pokerShow: (userId: number) => act(userId, 'poker:show'),
   });
 }

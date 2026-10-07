@@ -16,6 +16,7 @@ import { Server, type Socket } from 'socket.io';
 import { authenticate, type AuthConfig } from './auth.ts';
 import type { Db } from './db.ts';
 import { shuffledShoe } from './games/blackjack.ts';
+import { pokerDeck, shuffled } from './games/poker/hand-rank.ts';
 import { Rooms } from './rooms.ts';
 import { balanceOf, settleRound } from './rounds.ts';
 import { findTable, recordVisit } from './tables.ts';
@@ -30,6 +31,8 @@ interface Deps {
   // Подмена колеса рулетки в тестах; по умолчанию — честное случайное число.
   spinNumber?: () => number;
   spinMs?: number;
+  // Подмена колоды покера в тестах.
+  newDeck?: (shortDeck: boolean) => Card[];
 }
 
 type Io = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, { user: Me }>;
@@ -38,7 +41,7 @@ type Client = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, 
 const toPlayerInfo = ({ id, firstName, lastName, photoUrl }: Me): PlayerInfo => ({ id, firstName, lastName, photoUrl });
 
 // Сокеты поверх Rooms: авторизация, одно подключение на игрока, рассылка снимков по комнатам.
-export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink, newShoe, spinNumber, spinMs }: Deps): Io {
+export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink, newShoe, spinNumber, spinMs, newDeck }: Deps): Io {
   const io: Io = new Server(httpServer);
   const connections = new Map<number, Client>();
   const rooms = new Rooms({
@@ -49,6 +52,8 @@ export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink
     newShoe: newShoe ?? (() => shuffledShoe(randomInt)),
     spinNumber: spinNumber ?? (() => randomInt(37)),
     spinMs,
+    sendCards: (userId, cards) => connections.get(userId)?.emit('poker:cards', cards),
+    newDeck: newDeck ?? ((shortDeck) => shuffled(pokerDeck(shortDeck), randomInt)),
   });
 
   io.use((socket, next) => {

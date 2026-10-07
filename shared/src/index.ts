@@ -77,7 +77,7 @@ export interface RouletteSnapshot {
   game: RouletteView;
 }
 
-export type TableSnapshot = BlackjackSnapshot | RouletteSnapshot;
+export type TableSnapshot = BlackjackSnapshot | RouletteSnapshot | PokerSnapshot;
 
 export type Ack<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -91,6 +91,13 @@ export interface ClientToServerEvents {
   'roulette:bet': (field: RouletteField, amount: number, ack: (result: Ack) => void) => void;
   'roulette:clear': (ack: (result: Ack) => void) => void;
   'roulette:ready': (ack: (result: Ack) => void) => void;
+  'poker:sit': (seat: number, buyIn: number, ack: (result: Ack) => void) => void;
+  'poker:leave': () => void;
+  'poker:rebuy': (amount: number, ack: (result: Ack) => void) => void;
+  // amount — для рейза: итоговая ставка в круге («повысить до»).
+  'poker:action': (kind: PokerActionKind, amount: number | null, ack: (result: Ack) => void) => void;
+  'poker:discard': (index: number, ack: (result: Ack) => void) => void;
+  'poker:show': (ack: (result: Ack) => void) => void;
   'chat:send': (text: string, ack: (result: Ack) => void) => void;
   'reaction:send': (reaction: Reaction, ack: (result: Ack) => void) => void;
 }
@@ -103,6 +110,8 @@ export interface ServerToClientEvents {
   balance: (balance: number) => void;
   'chat:message': (message: ChatMessage) => void;
   reaction: (event: ReactionEvent) => void;
+  // Закрытые карты игрока в покере; пустой список — карт больше нет.
+  'poker:cards': (cards: Card[]) => void;
 }
 
 // ── Блэкджек ─────────────────────────────────────────────────────────────
@@ -290,6 +299,56 @@ export type PokerPhase = 'waiting' | 'discard' | 'preflop' | 'flop' | 'turn' | '
 // waiting — сидит, но в текущей раздаче не участвует.
 export type PokerSeatState = 'waiting' | 'active' | 'folded' | 'allin';
 export type PokerActionKind = 'fold' | 'check' | 'call' | 'raise';
+
+export interface PokerSeatView {
+  player: PlayerInfo;
+  connected: boolean;
+  // Игрок встал посреди раздачи: место освободится после её расчёта.
+  leaving: boolean;
+  stack: number;
+  // Ставка в текущем круге торговли.
+  bet: number;
+  state: PokerSeatState;
+  // Открытые всем карты; null, пока рука закрыта (свои карты приходят событием poker:cards).
+  cards: Card[] | null;
+  hasCards: boolean;
+  // 3-1: карта уже сброшена.
+  discarded: boolean;
+  // Сколько игрок забрал из банка; null, пока раздача идёт.
+  won: number | null;
+  // Название комбинации открытой руки.
+  hand: string | null;
+}
+
+export interface PokerView {
+  phase: PokerPhase;
+  seats: (PokerSeatView | null)[];
+  board: Card[];
+  // Основной и побочные банки без ставок текущего круга.
+  pots: number[];
+  // Место кнопки; null между раздачами до первой.
+  button: number | null;
+  // Чей ход: сколько доставить до колла и до какой суммы можно повысить (нули — повышать нельзя).
+  turn: { seat: number; toCall: number; minRaise: number; maxRaise: number } | null;
+  // Сколько миллисекунд осталось до конца текущего таймера (ход, сброс, выкладка борда, результат).
+  timeLeftMs: number | null;
+}
+
+export interface PokerSnapshot {
+  kind: 'poker';
+  table: TableInfo;
+  spectators: number;
+  game: PokerView;
+}
+
+// Подробности раздачи для статистики.
+export interface PokerDetails {
+  mode: PokerMode;
+  // Сколько игрок забрал из банка.
+  pot: number;
+  // Дошёл ли до вскрытия.
+  showdown: boolean;
+}
 
 // ── Чат и реакции ────────────────────────────────────────────────────────
 

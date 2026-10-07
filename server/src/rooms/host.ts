@@ -1,4 +1,4 @@
-import type { Ack, PlayerInfo, TableInfo, TableSnapshot } from '@casino/shared';
+import type { Ack, Card, PlayerInfo, TableInfo, TableSnapshot } from '@casino/shared';
 import type { PlayerResult } from '../rounds.ts';
 
 export type Timer = ReturnType<typeof setTimeout>;
@@ -34,6 +34,8 @@ export interface HostContext {
   // Записывает итоги раунда и сообщает участникам новые балансы. false — раунд не записался:
   // фишки ни у кого не изменились, и стол должен аннулировать раунд, не показывая результата.
   payOut(results: PlayerResult[]): boolean;
+  // Личное сообщение игроку: его закрытые карты (пустой список — карт больше нет).
+  sendCards(userId: number, cards: Card[]): void;
 }
 
 // Стол с местами, за которым игрок сидит. Сидеть можно только за одним таким столом.
