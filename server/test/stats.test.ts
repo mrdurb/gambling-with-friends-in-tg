@@ -1,9 +1,9 @@
-import type { BjDetails, RoundOutcome } from '@casino/shared';
+import type { BjDetails, RouletteBets, RoundOutcome } from '@casino/shared';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { openDb, type Db } from '../src/db.ts';
 import { settleRound } from '../src/rounds.ts';
-import { getBlackjackStats, getRating } from '../src/stats.ts';
+import { getBlackjackStats, getRating, getRouletteStats } from '../src/stats.ts';
 import { upsertUser } from '../src/users.ts';
 import { withdrawFromCashier } from '../src/wallet.ts';
 
@@ -133,5 +133,49 @@ describe('stats API', () => {
     const { get } = api();
     expect((await get('/api/rating', null)).statusCode).toBe(401);
     expect((await get('/api/stats/2', null)).statusCode).toBe(401);
+  });
+});
+
+// Раунд рулетки одного игрока: выпавшее число, ставки, чистый результат.
+function spin(db: Db, userId: number, number: number, bets: RouletteBets, net: number) {
+  const wagered = Object.values(bets).reduce<number>((sum, amount) => sum + (amount ?? 0), 0);
+  const outcome: RoundOutcome = net > 0 ? 'win' : net < 0 ? 'lose' : 'push';
+  settleRound(db, 'TABLE002', 'roulette', [{ userId, wagered, net, outcome, details: { number, bets } }]);
+}
+
+describe('roulette statistics', () => {
+  it('is all zeros for a player who has not played roulette', () => {
+    const db = setup([1]);
+    round(db, 1, 100);
+    expect(getRouletteStats(db, 1)).toEqual({ rounds: 0, wagered: 0, net: 0, biggestWin: 0, numberHits: 0 });
+  });
+
+  it('counts rounds, chips, the biggest win and number hits', () => {
+    const db = setup([1, 2]);
+    spin(db, 1, 7, { n7: 10, red: 10 }, 360); // число и цвет
+    spin(db, 1, 7, { n8: 10, red: 20 }, 10); // мимо числа
+    spin(db, 1, 0, { red: 50 }, -50);
+    spin(db, 1, 1, { red: 10, black: 10 }, 0);
+    spin(db, 2, 5, { n5: 5 }, 175);
+
+    expect(getRouletteStats(db, 1)).toEqual({ rounds: 4, wagered: 120, net: 320, biggestWin: 360, numberHits: 1 });
+  });
+
+  it('keeps the two games apart in per-game statistics and together in the rating', () => {
+    const db = setup([1]);
+    round(db, 1, 100);
+    spin(db, 1, 0, { red: 30 }, -30);
+
+    expect(getBlackjackStats(db, 1)).toMatchObject({ rounds: 1, net: 100 });
+    expect(getRouletteStats(db, 1)).toMatchObject({ rounds: 1, net: -30 });
+    expect(getRating(db)).toMatchObject([{ won: 100, lost: 30, net: 70 }]);
+  });
+
+  it('is part of the player statistics API', async () => {
+    const db = setup([1]);
+    spin(db, 1, 7, { n7: 10 }, 350);
+    const app = buildApp(db, { botToken: '', devAuth: true });
+    const res = await app.inject({ url: '/api/stats/1', headers: { authorization: 'dev 1' } });
+    expect(res.json().roulette).toEqual({ rounds: 1, wagered: 10, net: 350, biggestWin: 350, numberHits: 1 });
   });
 });

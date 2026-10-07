@@ -60,6 +60,30 @@ describe('tables API', () => {
     expect(mine.every((t) => created.includes(t.code))).toBe(true);
   });
 
+  it('creates a roulette table when asked, and a blackjack one by default', async () => {
+    const { app } = setup();
+    const create = (payload?: object) =>
+      app.inject({ method: 'POST', url: '/api/tables', headers: { authorization: 'dev 1' }, payload });
+    expect((await create({ game: 'roulette' })).json()).toMatchObject({ name: 'Рулетка игрока Игрок 1', game: 'roulette' });
+    expect((await create({ game: 'blackjack' })).json()).toMatchObject({ name: 'Стол игрока Игрок 1', game: 'blackjack' });
+    expect((await create({})).json()).toMatchObject({ game: 'blackjack' });
+    expect((await create({ game: 'poker' })).statusCode).toBe(400);
+    expect((await create({ game: 42 })).statusCode).toBe(400);
+  });
+
+  it('lists the tables of one game at a time, blackjack by default', async () => {
+    const { app, call } = setup();
+    const roulette = (
+      await app.inject({ method: 'POST', url: '/api/tables', headers: { authorization: 'dev 1' }, payload: { game: 'roulette' } })
+    ).json();
+    const blackjack = (await call('POST', '/api/tables')).json();
+
+    expect((await call('GET', '/api/tables?game=roulette')).json()).toEqual([roulette]);
+    expect((await call('GET', '/api/tables?game=blackjack')).json()).toEqual([blackjack]);
+    expect((await call('GET', '/api/tables')).json()).toEqual([blackjack]);
+    expect((await call('GET', '/api/tables?game=poker')).statusCode).toBe(400);
+  });
+
   it('requires authorization', async () => {
     const { app } = setup();
     expect((await app.inject({ method: 'POST', url: '/api/tables' })).statusCode).toBe(401);

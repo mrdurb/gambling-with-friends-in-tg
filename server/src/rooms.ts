@@ -18,6 +18,8 @@ export interface RoomDeps {
   newShoe: () => Card[];
   // Число, выпавшее на колесе рулетки: от 0 до 36.
   spinNumber: () => number;
+  // Длительность вращения; в тестах короче настоящей.
+  spinMs?: number;
 }
 
 const fail = (error: string): Ack => ({ ok: false, error });
@@ -94,8 +96,11 @@ export class Rooms {
     return this.presentAt.get(userId) ?? null;
   }
 
-  isSeatedAt(userId: number, code: string): boolean {
-    return this.seated.get(userId)?.code === code;
+  // Реакции: в блэкджеке — только сидящим за этим столом, в рулетке — всем, у кого стол открыт.
+  canReact(userId: number): boolean {
+    const room = this.rooms.get(this.presentAt.get(userId) ?? '');
+    if (!room) return false;
+    return room.host instanceof RouletteTable || this.seated.get(userId) === room.host;
   }
 
   private open(table: TableInfo): Room {
@@ -110,7 +115,7 @@ export class Rooms {
     };
     const host =
       table.game === 'roulette'
-        ? new RouletteTable(ctx, this.deps.spinNumber)
+        ? new RouletteTable(ctx, this.deps.spinNumber, this.deps.spinMs)
         : new BlackjackTable(ctx, this.seated, this.deps.newShoe);
     const room: Room = { ctx, host };
     return room;

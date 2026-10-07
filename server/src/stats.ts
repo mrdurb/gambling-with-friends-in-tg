@@ -1,4 +1,4 @@
-import type { BjDetails, BlackjackStats, PlayerInfo, RatingRow } from '@casino/shared';
+import type { BjDetails, BlackjackStats, PlayerInfo, RatingRow, RouletteDetails, RouletteStats } from '@casino/shared';
 import type { Db } from './db.ts';
 
 interface PlayerRow {
@@ -91,5 +91,24 @@ export function getBlackjackStats(db: Db, userId: number): BlackjackStats {
     stats.bustRate = busts / stats.rounds;
   }
   if (stats.doubles > 0) stats.doublesWonRate = doublesWon / stats.doubles;
+  return stats;
+}
+
+export function getRouletteStats(db: Db, userId: number): RouletteStats {
+  const rounds = db
+    .prepare(`
+      SELECT rr.wagered, rr.net, rr.details FROM round_results rr JOIN rounds r ON r.id = rr.round_id
+      WHERE rr.user_id = ? AND r.game = 'roulette'
+    `)
+    .all(userId) as unknown as { wagered: number; net: number; details: string }[];
+
+  const stats: RouletteStats = { rounds: rounds.length, wagered: 0, net: 0, biggestWin: 0, numberHits: 0 };
+  for (const round of rounds) {
+    const details = JSON.parse(round.details) as RouletteDetails;
+    stats.wagered += round.wagered;
+    stats.net += round.net;
+    stats.biggestWin = Math.max(stats.biggestWin, round.net);
+    if (details.bets[`n${details.number}`]) stats.numberHits += 1;
+  }
   return stats;
 }

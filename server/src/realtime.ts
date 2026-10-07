@@ -29,6 +29,7 @@ interface Deps {
   newShoe?: () => Card[];
   // Подмена колеса рулетки в тестах; по умолчанию — честное случайное число.
   spinNumber?: () => number;
+  spinMs?: number;
 }
 
 type Io = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, { user: Me }>;
@@ -39,7 +40,7 @@ const ACTIONS: BjAction[] = ['hit', 'stand', 'double', 'split'];
 const toPlayerInfo = ({ id, firstName, lastName, photoUrl }: Me): PlayerInfo => ({ id, firstName, lastName, photoUrl });
 
 // Сокеты поверх Rooms: авторизация, одно подключение на игрока, рассылка снимков по комнатам.
-export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink, newShoe, spinNumber }: Deps): Io {
+export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink, newShoe, spinNumber, spinMs }: Deps): Io {
   const io: Io = new Server(httpServer);
   const connections = new Map<number, Client>();
   const rooms = new Rooms({
@@ -49,6 +50,7 @@ export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink
     notifyBalance: (userId, balance) => connections.get(userId)?.emit('balance', balance),
     newShoe: newShoe ?? (() => shuffledShoe(randomInt)),
     spinNumber: spinNumber ?? (() => randomInt(37)),
+    spinMs,
   });
 
   io.use((socket, next) => {
@@ -106,6 +108,19 @@ export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink
       ack(ACTIONS.includes(action) ? rooms.act(user.id, action) : { ok: false, error: 'not_allowed' });
     });
 
+    socket.on('roulette:bet', (field, amount, ack) => {
+      if (typeof ack !== 'function') return;
+      ack(typeof amount === 'number' ? rooms.rouletteBet(user.id, field, amount) : { ok: false, error: 'bad_bet' });
+    });
+
+    socket.on('roulette:clear', (ack) => {
+      if (typeof ack === 'function') ack(rooms.rouletteClear(user.id));
+    });
+
+    socket.on('roulette:ready', (ack) => {
+      if (typeof ack === 'function') ack(rooms.rouletteReady(user.id));
+    });
+
     // Общий предел частоты для чата и реакций: время последних принятых отправок этого подключения.
     const sentAt: number[] = [];
     const tooFast = () => {
@@ -131,7 +146,7 @@ export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink
     socket.on('reaction:send', (reaction, ack) => {
       if (typeof ack !== 'function') return;
       const code = rooms.tableOf(user.id);
-      if (!code || !rooms.isSeatedAt(user.id, code)) return ack({ ok: false, error: 'not_seated' });
+      if (!code || !rooms.canReact(user.id)) return ack({ ok: false, error: 'not_seated' });
       const value = reaction?.kind === 'emoji' ? reaction.value : null;
       if (!(REACTIONS as readonly unknown[]).includes(value)) return ack({ ok: false, error: 'bad_reaction' });
       if (tooFast()) return ack({ ok: false, error: 'too_fast' });

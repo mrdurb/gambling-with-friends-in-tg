@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import type { Me, TableInfo } from '@casino/shared';
+import type { GameId, Me, TableInfo } from '@casino/shared';
 import type { Db } from './db.ts';
 
 const CODE_PATTERN = /^[A-Za-z0-9_-]{8}$/;
@@ -25,11 +25,11 @@ export function recordVisit(db: Db, code: string, userId: number): void {
   );
 }
 
-export function createTable(db: Db, creator: Me, appLink: string): TableInfo {
+export function createTable(db: Db, creator: Me, appLink: string, game: GameId = 'blackjack'): TableInfo {
   const row: TableRow = {
     code: randomBytes(6).toString('base64url'),
-    name: `Стол игрока ${creator.firstName}`,
-    game: 'blackjack',
+    name: `${game === 'roulette' ? 'Рулетка' : 'Стол'} игрока ${creator.firstName}`,
+    game,
   };
   db.prepare('INSERT INTO tables (code, game, name, created_by, created_at) VALUES (?, ?, ?, ?, ?)').run(
     row.code,
@@ -48,12 +48,12 @@ export function findTable(db: Db, code: string, appLink: string): TableInfo | nu
   return row ? toInfo(row, appLink) : null;
 }
 
-export function listVisitedTables(db: Db, userId: number, appLink: string): TableInfo[] {
+export function listVisitedTables(db: Db, userId: number, appLink: string, game: GameId = 'blackjack'): TableInfo[] {
   const rows = db
     .prepare(`
       SELECT t.code, t.name, t.game FROM table_visits v JOIN tables t ON t.code = v.table_code
-      WHERE v.user_id = ? ORDER BY v.last_visit_at DESC, v.rowid DESC LIMIT ?
+      WHERE v.user_id = ? AND t.game = ? ORDER BY v.last_visit_at DESC, v.rowid DESC LIMIT ?
     `)
-    .all(userId, MY_TABLES_LIMIT) as unknown as TableRow[];
+    .all(userId, game, MY_TABLES_LIMIT) as unknown as TableRow[];
   return rows.map((row) => toInfo(row, appLink));
 }

@@ -12,6 +12,8 @@ import type {
   ServerToClientEvents,
   Suit,
   BlackjackSnapshot,
+  RouletteField,
+  RouletteSnapshot,
 } from '@casino/shared';
 import { io as connect, type Socket } from 'socket.io-client';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -30,12 +32,15 @@ afterEach(async () => {
 
 const card = (text: string): Card => ({ rank: text.slice(0, -1) as Rank, suit: text.slice(-1) as Suit });
 
-async function setup(script = '') {
+async function setup(script = '', numbers: number[] = [1]) {
   const db = openDb(':memory:');
   const authConfig = { botToken: '', devAuth: true };
   const app = buildApp(db, authConfig);
   const newShoe = () => [...script.split(/\s+/).filter(Boolean).map(card), ...Array.from({ length: 312 }, () => card('2C'))];
-  const io = attachRealtime(app.server, { db, authConfig, appLink: '', newShoe });
+  let spins = 0;
+  const spinNumber = () => numbers[Math.min(spins++, numbers.length - 1)]!;
+  // Вращение в тестах короткое, чтобы не ждать настоящие 5 секунд.
+  const io = attachRealtime(app.server, { db, authConfig, appLink: '', newShoe, spinNumber, spinMs: 50 });
   await app.listen({ port: 0, host: '127.0.0.1' });
   cleanups.push(() => io.close(), () => app.close());
   const { port } = app.server.address() as AddressInfo;
@@ -51,7 +56,11 @@ async function setup(script = '') {
     return socket;
   };
   const created = await app.inject({ method: 'POST', url: '/api/tables', headers: { authorization: 'dev 1' } });
-  return { client, db, code: created.json().code as string };
+  const rouletteTable = async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/tables', headers: { authorization: 'dev 1' }, payload: { game: 'roulette' } });
+    return res.json().code as string;
+  };
+  return { client, db, code: created.json().code as string, rouletteTable };
 }
 
 const join = (socket: Client, code: string) =>
@@ -68,6 +77,12 @@ const collect = <T,>(socket: Client, event: 'chat:message' | 'reaction') => {
   socket.on(event, ((item: T) => items.push(item)) as never);
   return items;
 };
+const rBet = (socket: Client, field: RouletteField, amount: number) =>
+  new Promise<Ack>((resolve) => socket.emit('roulette:bet', field, amount, resolve));
+const rReady = (socket: Client) => new Promise<Ack>((resolve) => socket.emit('roulette:ready', resolve));
+const rClear = (socket: Client) => new Promise<Ack>((resolve) => socket.emit('roulette:clear', resolve));
+const rouletteWhere = (socket: Client, matches: (snapshot: RouletteSnapshot) => boolean) =>
+  snapshotWhere(socket, matches as never) as unknown as Promise<RouletteSnapshot>;
 // Сообщения сокета доставляются по порядку, поэтому ответ на «пинг» означает, что всё отправленное раньше уже пришло.
 const settle = (socket: Client) => say(socket, 'ping');
 const snapshotWhere = (socket: Client, matches: (snapshot: TableSnapshot) => boolean) =>
@@ -263,6 +278,74 @@ describe('realtime tables', () => {
     expect(malformed).toEqual({ ok: false, error: 'bad_reaction' });
 
     await settle(spectator);
+    expect(seen).toEqual([{ userId: 1, reaction: { kind: 'emoji', value: '🎉' } }]);
+  });
+
+  it('plays a round of roulette between two players and moves the chips', async () => {
+    const { client, db, rouletteTable } = await setup('', [1]);
+    const code = await rouletteTable();
+    const [first, second] = [client('dev 1'), client('dev 2')];
+    expect(await join(first, code)).toMatchObject({ ok: true, snapshot: { kind: 'roulette', game: { phase: 'waiting' } } });
+    await join(second, code);
+
+    const firstBalance = new Promise<number>((resolve) => first.on('balance', resolve));
+    const secondBalance = new Promise<number>((resolve) => second.on('balance', resolve));
+    const spinning = rouletteWhere(second, (s) => s.game.phase === 'spinning');
+    const result = rouletteWhere(second, (s) => s.game.phase === 'result');
+
+    expect(await rBet(first, 'red', 100)).toEqual({ ok: true });
+    expect(await rBet(second, 'n7', 50)).toEqual({ ok: true });
+    expect(await rBet(second, 'black', 10)).toEqual({ ok: true });
+    expect(await rClear(second)).toEqual({ ok: true });
+    expect(await rBet(second, 'black', 50)).toEqual({ ok: true });
+    expect(await rReady(first)).toEqual({ ok: true });
+    expect(await rReady(second)).toEqual({ ok: true });
+
+    expect((await spinning).game.number).toBe(1);
+    expect(await firstBalance).toBe(1100);
+    expect(await secondBalance).toBe(950);
+    expect((await result).game).toMatchObject({ number: 1, history: [1], players: [{ net: 100 }, { net: -50 }] });
+    expect(db.prepare('SELECT id, balance FROM users ORDER BY id').all()).toEqual([
+      { id: 1, balance: 1100 },
+      { id: 2, balance: 950 },
+    ]);
+    expect(db.prepare('SELECT game FROM rounds').all()).toEqual([{ game: 'roulette' }]);
+    expect(db.prepare("SELECT user_id, amount, game FROM ledger WHERE type = 'round' ORDER BY user_id").all()).toEqual([
+      { user_id: 1, amount: 100, game: 'roulette' },
+      { user_id: 2, amount: -50, game: 'roulette' },
+    ]);
+  });
+
+  it('rejects malformed roulette messages and messages meant for the other game', async () => {
+    const { client, code, rouletteTable } = await setup();
+    const socket = client('dev 1');
+    const raw = socket as unknown as { emit: (...args: unknown[]) => void };
+    expect(await rBet(socket, 'red', 10)).toEqual({ ok: false, error: 'not_at_table' });
+
+    await join(socket, await rouletteTable());
+    raw.emit('roulette:bet', 'red', 10);
+    raw.emit('roulette:ready', 'not a function');
+    raw.emit('roulette:clear');
+    expect(await rBet(socket, null as unknown as RouletteField, 10)).toEqual({ ok: false, error: 'bad_field' });
+    expect(await rBet(socket, 'n99' as RouletteField, 10)).toEqual({ ok: false, error: 'bad_field' });
+    expect(await rBet(socket, 'red', '10' as unknown as number)).toEqual({ ok: false, error: 'bad_bet' });
+    expect(await sit(socket, 0)).toEqual({ ok: false, error: 'wrong_game' });
+    expect(await rBet(socket, 'red', 10)).toEqual({ ok: true });
+
+    await join(socket, code);
+    expect(await rBet(socket, 'red', 10)).toEqual({ ok: false, error: 'wrong_game' });
+    expect(await rReady(socket)).toEqual({ ok: false, error: 'wrong_game' });
+  });
+
+  it('lets anyone at a roulette table send a reaction', async () => {
+    const { client, rouletteTable } = await setup();
+    const code = await rouletteTable();
+    const [sender, watcher] = [client('dev 1'), client('dev 2')];
+    await join(sender, code);
+    await join(watcher, code);
+    const seen = collect<ReactionEvent>(watcher, 'reaction');
+    expect(await react(sender, '🎉')).toEqual({ ok: true });
+    await settle(watcher);
     expect(seen).toEqual([{ userId: 1, reaction: { kind: 'emoji', value: '🎉' } }]);
   });
 });

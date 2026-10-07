@@ -19,7 +19,9 @@ export const SEATS = 6;
 // Сколько место ждёт игрока без связи, пока за столом не идёт раздача.
 export const DISCONNECT_GRACE_MS = 60_000;
 
-export type GameId = 'blackjack' | 'roulette';
+export const GAME_IDS = ['blackjack', 'roulette'] as const;
+export type GameId = (typeof GAME_IDS)[number];
+export const isGameId = (value: unknown): value is GameId => (GAME_IDS as readonly unknown[]).includes(value);
 
 export interface PlayerInfo {
   id: number;
@@ -67,6 +69,9 @@ export interface ClientToServerEvents {
   'seat:leave': () => void;
   'game:bet': (amount: number, ack: (result: Ack) => void) => void;
   'game:action': (action: BjAction, ack: (result: Ack) => void) => void;
+  'roulette:bet': (field: RouletteField, amount: number, ack: (result: Ack) => void) => void;
+  'roulette:clear': (ack: (result: Ack) => void) => void;
+  'roulette:ready': (ack: (result: Ack) => void) => void;
   'chat:send': (text: string, ack: (result: Ack) => void) => void;
   'reaction:send': (reaction: Reaction, ack: (result: Ack) => void) => void;
 }
@@ -307,7 +312,19 @@ export interface BlackjackStats {
   cashierTotal: number;
 }
 
+export interface RouletteStats {
+  rounds: number;
+  // Сколько фишек поставлено за все раунды.
+  wagered: number;
+  net: number;
+  // Крупнейший чистый выигрыш за раунд.
+  biggestWin: number;
+  // Сколько раз выиграла ставка на число.
+  numberHits: number;
+}
+
 export interface PlayerStats {
   player: PlayerInfo;
   blackjack: BlackjackStats;
+  roulette: RouletteStats;
 }

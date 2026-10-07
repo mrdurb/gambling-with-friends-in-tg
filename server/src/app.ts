@@ -1,10 +1,10 @@
 import { resolve } from 'node:path';
 import fastifyStatic from '@fastify/static';
-import type { Me } from '@casino/shared';
+import { isGameId, type Me } from '@casino/shared';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { AuthError, authenticate, type AuthConfig } from './auth.ts';
 import type { Db } from './db.ts';
-import { findPlayer, getBlackjackStats, getRating } from './stats.ts';
+import { findPlayer, getBlackjackStats, getRating, getRouletteStats } from './stats.ts';
 import { createTable, findTable, listVisitedTables, recordVisit } from './tables.ts';
 import { upsertUser } from './users.ts';
 import { WalletError, withdrawFromCashier } from './wallet.ts';
@@ -45,9 +45,20 @@ export function buildApp(db: Db, authConfig: AuthConfig, options: AppOptions = {
     }
   });
 
-  app.post('/api/tables', async (request) => createTable(db, currentUser(request), appLink));
+  // Игра не указана — блэкджек: так запрашивают клиенты, открытые до появления второй игры.
+  app.post('/api/tables', async (request, reply) => {
+    const me = currentUser(request);
+    const game = (request.body as { game?: unknown } | null)?.game ?? 'blackjack';
+    if (!isGameId(game)) return reply.code(400).send({ error: 'bad_game' });
+    return createTable(db, me, appLink, game);
+  });
 
-  app.get('/api/tables', async (request) => listVisitedTables(db, currentUser(request).id, appLink));
+  app.get('/api/tables', async (request, reply) => {
+    const me = currentUser(request);
+    const game = (request.query as { game?: unknown }).game ?? 'blackjack';
+    if (!isGameId(game)) return reply.code(400).send({ error: 'bad_game' });
+    return listVisitedTables(db, me.id, appLink, game);
+  });
 
   app.get('/api/tables/:code', async (request, reply) => {
     const me = currentUser(request);
@@ -67,7 +78,7 @@ export function buildApp(db: Db, authConfig: AuthConfig, options: AppOptions = {
     const raw = (request.params as { userId: string }).userId;
     const player = /^\d{1,16}$/.test(raw) ? findPlayer(db, Number(raw)) : null;
     if (!player) return reply.code(404).send({ error: 'not_found' });
-    return { player, blackjack: getBlackjackStats(db, player.id) };
+    return { player, blackjack: getBlackjackStats(db, player.id), roulette: getRouletteStats(db, player.id) };
   });
 
   if (staticDir) app.register(fastifyStatic, { root: resolve(staticDir) });

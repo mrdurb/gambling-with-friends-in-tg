@@ -24,6 +24,7 @@ export class RouletteTable implements TableHost {
   constructor(
     private readonly ctx: HostContext,
     private readonly spinNumber: () => number,
+    private readonly spinMs = SPIN_MS,
   ) {}
 
   enter(): void {}
@@ -105,7 +106,7 @@ export class RouletteTable implements TableHost {
   // Число известно сразу, чтобы клиенты довели анимацию до него; фишки меняются, когда колесо остановится.
   private spin(): void {
     this.game.spin(this.spinNumber());
-    this.timer.set(SPIN_MS, () => this.settle());
+    this.timer.set(this.spinMs, () => this.settle());
     this.ctx.publish();
   }
 
