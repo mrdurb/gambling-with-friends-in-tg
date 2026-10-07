@@ -161,6 +161,8 @@ export const ROULETTE_BET_MS = 25_000;
 export const SPIN_MS = 5_000;
 // Сколько последних выпавших чисел помнит стол.
 export const ROULETTE_HISTORY = 5;
+// Сколько действий со ставками (поставить, сбросить, «Готов») игрок может сделать за CHAT_RATE_WINDOW_MS.
+export const ROULETTE_RATE_LIMIT = 30;
 // Номиналы фишек рулетки: ставка на поле — не меньше MIN_BET.
 export const ROULETTE_CHIPS = CHIP_VALUES.filter((value) => value >= MIN_BET);
 

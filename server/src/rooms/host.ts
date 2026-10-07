@@ -26,9 +26,9 @@ export interface HostContext {
   // Баланс игрока за вычетом всего, что у него на кону за любым столом.
   freeBalance(userId: number): number;
   balanceOf(userId: number): number;
-  // Записывает итоги раунда и возвращает новые балансы участников.
-  settle(results: PlayerResult[]): Map<number, number>;
-  notifyBalance(userId: number, balance: number): void;
+  // Записывает итоги раунда и сообщает участникам новые балансы. false — раунд не записался:
+  // фишки ни у кого не изменились, и стол должен аннулировать раунд, не показывая результата.
+  payOut(results: PlayerResult[]): boolean;
 }
 
 // Таймер текущей фазы стола: один на стол, с известным временем окончания.

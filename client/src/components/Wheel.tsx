@@ -37,14 +37,20 @@ export function Wheel({ number, spinMs, shown }: Props) {
   useEffect(() => {
     if (number === null) return;
     const rest = -WHEEL_ORDER.indexOf(number) * STEP;
-    setDuration(spinMs ?? 0);
-    setRotation((current) => {
-      // Колесо стоит (зашли во время показа результата) — ближайшее положение с этим сектором наверху.
-      if (spinMs === null) return rest + Math.round((current - rest) / 360) * 360;
-      // Крутим только вперёд; зашедшему посреди вращения достаётся меньше оборотов.
-      const turns = Math.max(1, Math.round((FULL_TURNS * spinMs) / SPIN_MS));
-      return rest + (Math.ceil((current - rest) / 360) + turns) * 360;
-    });
+    if (spinMs === null) {
+      // Колесо уже едет к этому сектору или стоит на нём — анимацию не трогаем: снимок с результатом
+      // может прийти на мгновение раньше, чем она закончится.
+      const settled = rest + Math.round((rotation - rest) / 360) * 360;
+      if (Math.abs(settled - rotation) < 0.01) return;
+      // Зашли во время показа результата: ставим нужный сектор под указатель без вращения.
+      setDuration(0);
+      setRotation(settled);
+      return;
+    }
+    // Крутим только вперёд; зашедшему посреди вращения достаётся меньше оборотов.
+    const turns = Math.max(1, Math.round((FULL_TURNS * spinMs) / SPIN_MS));
+    setDuration(spinMs);
+    setRotation(rest + (Math.ceil((rotation - rest) / 360) + turns) * 360);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [number, spinning]);
 

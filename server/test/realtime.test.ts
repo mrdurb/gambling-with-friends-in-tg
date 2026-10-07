@@ -1,5 +1,5 @@
 import type { AddressInfo } from 'node:net';
-import { CHAT_RATE_LIMIT } from '@casino/shared';
+import { CHAT_RATE_LIMIT, ROULETTE_RATE_LIMIT } from '@casino/shared';
 import type {
   Ack,
   BjAction,
@@ -335,6 +335,16 @@ describe('realtime tables', () => {
     await join(socket, code);
     expect(await rBet(socket, 'red', 10)).toEqual({ ok: false, error: 'wrong_game' });
     expect(await rReady(socket)).toEqual({ ok: false, error: 'wrong_game' });
+  });
+
+  it('limits how fast one player can change roulette bets', async () => {
+    const { client, rouletteTable } = await setup();
+    const socket = client('dev 1');
+    await join(socket, await rouletteTable());
+    for (let i = 0; i < ROULETTE_RATE_LIMIT; i++) expect(await rBet(socket, 'red', 5)).toEqual({ ok: true });
+    expect(await rBet(socket, 'red', 5)).toEqual({ ok: false, error: 'too_fast' });
+    expect(await rClear(socket)).toEqual({ ok: false, error: 'too_fast' });
+    expect(await rReady(socket)).toEqual({ ok: false, error: 'too_fast' });
   });
 
   it('lets anyone at a roulette table send a reaction', async () => {

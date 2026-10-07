@@ -110,8 +110,16 @@ export class Rooms {
       publish: () => void this.publish(room),
       freeBalance: (userId) => this.freeBalance(userId),
       balanceOf: this.deps.balanceOf,
-      settle: (results) => this.deps.settle(ctx.table.code, results, ctx.table.game),
-      notifyBalance: this.deps.notifyBalance,
+      payOut: (results) => {
+        try {
+          const balances = this.deps.settle(ctx.table.code, results, ctx.table.game);
+          for (const [userId, balance] of balances) this.deps.notifyBalance(userId, balance);
+          return true;
+        } catch (error) {
+          console.error('round settlement failed', error);
+          return false;
+        }
+      },
     };
     const host =
       table.game === 'roulette'

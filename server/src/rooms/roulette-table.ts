@@ -29,10 +29,9 @@ export class RouletteTable implements TableHost {
 
   enter(): void {}
 
-  // Ушедший после ставки остаётся в раунде, но досрочный старт его больше не ждёт.
-  exit(): void {
-    this.spinIfAllReady();
-  }
+  // Ушедший после ставки остаётся в раунде. Сам уход колесо не запускает: связь могла оборваться
+  // на секунду, пока игрок ещё ставил. Но когда «Готов» нажмут оставшиеся, ушедшего ждать не будут.
+  exit(): void {}
 
   bet(userId: number, field: RouletteField, amount: number): Ack {
     const first = this.game.phase === 'waiting';
@@ -112,15 +111,8 @@ export class RouletteTable implements TableHost {
 
   private settle(): void {
     this.game.finish();
-    try {
-      for (const [userId, balance] of this.ctx.settle(this.game.results() ?? [])) this.ctx.notifyBalance(userId, balance);
-    } catch (error) {
-      // Раунд не записался — фишки ни у кого не изменились. Раунд аннулируется сразу,
-      // чтобы стол не показывал выигрыши, которых никто не получил.
-      console.error('round settlement failed', error);
-      this.endRound();
-      return;
-    }
+    // Раунд не записался — аннулируется сразу, чтобы стол не показывал выигрыши, которых никто не получил.
+    if (!this.ctx.payOut(this.game.results() ?? [])) return this.endRound();
     this.history = [this.game.view().number!, ...this.history].slice(0, ROULETTE_HISTORY);
     this.timer.set(RESULT_MS, () => this.endRound());
     this.ctx.publish();

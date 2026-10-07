@@ -46,6 +46,8 @@ const COLOR_NAMES = { red: 'красное', black: 'чёрное', green: 'зе
 const ERRORS: Record<string, string> = {
   insufficient: 'Не хватает фишек на эту ставку.',
   over_limit: `За раунд можно поставить не больше ${formatChips(MAX_BET)}.`,
+  round_in_progress: 'Ставки уже закрыты.',
+  too_fast: 'Слишком быстро. Подождите пару секунд.',
 };
 
 const sum = (bets: RoulettePlayerView['bets']) => Object.values(bets).reduce<number>((total, amount) => total + (amount ?? 0), 0);
@@ -75,7 +77,7 @@ export function RouletteTable({ snapshot, me, connection, onOpenCashier, chat }:
   async function send(request: Promise<{ ok: true } | { ok: false; error: string }>) {
     setError(null);
     const outcome = await request;
-    if (!outcome.ok) setError(ERRORS[outcome.error] ?? 'Действие не принято: ставки уже закрыты.');
+    if (!outcome.ok) setError(ERRORS[outcome.error] ?? 'Действие не принято. Попробуйте ещё раз.');
   }
 
   const cell = (field: RouletteField, label: string, className: string, hint?: string) => {

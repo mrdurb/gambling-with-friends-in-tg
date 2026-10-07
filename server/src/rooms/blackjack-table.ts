@@ -234,15 +234,8 @@ export class BlackjackTable implements TableHost {
         ? [{ userId: seat.player.id, wagered: result.wagered, net: result.net, outcome: result.outcome, details: result.details }]
         : [];
     });
-    try {
-      for (const [userId, balance] of this.ctx.settle(results)) this.ctx.notifyBalance(userId, balance);
-    } catch (error) {
-      // Раунд не записался — фишки ни у кого не изменились. Раздача аннулируется сразу,
-      // чтобы стол не показывал выигрыши, которых никто не получил.
-      console.error('round settlement failed', error);
-      this.endResult();
-      return;
-    }
+    // Раздача не записалась — аннулируется сразу, чтобы стол не показывал выигрыши, которых никто не получил.
+    if (!this.ctx.payOut(results)) return this.endResult();
     this.timer.set(RESULT_MS, () => this.endResult());
     this.ctx.publish();
   }

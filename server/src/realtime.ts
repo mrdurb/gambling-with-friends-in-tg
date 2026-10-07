@@ -4,6 +4,7 @@ import {
   CHAT_MAX_LENGTH,
   CHAT_RATE_LIMIT,
   CHAT_RATE_WINDOW_MS,
+  ROULETTE_RATE_LIMIT,
   REACTIONS,
   type BjAction,
   type Card,
@@ -108,28 +109,36 @@ export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink
       ack(ACTIONS.includes(action) ? rooms.act(user.id, action) : { ok: false, error: 'not_allowed' });
     });
 
+    // Предел частоты на подключение: не больше limit принятых действий за окно времени.
+    const limiter = (limit: number) => {
+      const acceptedAt: number[] = [];
+      return () => {
+        const now = Date.now();
+        while (acceptedAt.length && now - acceptedAt[0]! >= CHAT_RATE_WINDOW_MS) acceptedAt.shift();
+        if (acceptedAt.length >= limit) return true;
+        acceptedAt.push(now);
+        return false;
+      };
+    };
+    // Общий предел для чата и реакций.
+    const tooFast = limiter(CHAT_RATE_LIMIT);
+    // Каждое принятое действие со ставками рассылает снимок всему столу.
+    const bettingTooFast = limiter(ROULETTE_RATE_LIMIT);
+    const tooFastAck = { ok: false, error: 'too_fast' } as const;
+
     socket.on('roulette:bet', (field, amount, ack) => {
       if (typeof ack !== 'function') return;
-      ack(typeof amount === 'number' ? rooms.rouletteBet(user.id, field, amount) : { ok: false, error: 'bad_bet' });
+      if (typeof amount !== 'number') return ack({ ok: false, error: 'bad_bet' });
+      ack(bettingTooFast() ? tooFastAck : rooms.rouletteBet(user.id, field, amount));
     });
 
     socket.on('roulette:clear', (ack) => {
-      if (typeof ack === 'function') ack(rooms.rouletteClear(user.id));
+      if (typeof ack === 'function') ack(bettingTooFast() ? tooFastAck : rooms.rouletteClear(user.id));
     });
 
     socket.on('roulette:ready', (ack) => {
-      if (typeof ack === 'function') ack(rooms.rouletteReady(user.id));
+      if (typeof ack === 'function') ack(bettingTooFast() ? tooFastAck : rooms.rouletteReady(user.id));
     });
-
-    // Общий предел частоты для чата и реакций: время последних принятых отправок этого подключения.
-    const sentAt: number[] = [];
-    const tooFast = () => {
-      const now = Date.now();
-      while (sentAt.length && now - sentAt[0]! >= CHAT_RATE_WINDOW_MS) sentAt.shift();
-      if (sentAt.length >= CHAT_RATE_LIMIT) return true;
-      sentAt.push(now);
-      return false;
-    };
 
     // Чат и реакции нигде не сохраняются: проверили и сразу разослали тем, у кого открыт стол.
     socket.on('chat:send', (text, ack) => {

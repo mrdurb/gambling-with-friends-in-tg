@@ -152,6 +152,23 @@ describe('starting the spin', () => {
     expect(last().players.map((item) => item.player.id)).toEqual([1]);
   });
 
+  it('does not spin just because a bettor who was still betting lost connection', () => {
+    const { rooms, last, sent } = setup();
+    rooms.rouletteBet(1, 'red', 10);
+    rooms.rouletteBet(2, 'black', 10);
+    rooms.rouletteReady(2);
+    const before = sent.length;
+    rooms.exit(1);
+    expect(last().phase).toBe('betting');
+    expect(sent.length).toBe(before + 1);
+
+    // Вернулся — может доставить и подтвердить.
+    rooms.enter(table, player(1));
+    expect(rooms.rouletteBet(1, 'n3', 5)).toEqual({ ok: true });
+    rooms.rouletteReady(1);
+    expect(last().phase).toBe('spinning');
+  });
+
   it('waits for the countdown when every bettor has left', () => {
     const { rooms, last } = setup({ players: [1, 2] });
     rooms.rouletteBet(1, 'red', 10);
