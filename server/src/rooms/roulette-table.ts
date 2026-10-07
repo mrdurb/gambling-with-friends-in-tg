@@ -1,5 +1,5 @@
 import {
-  RESULT_MS,
+  ROULETTE_RESULT_MS,
   ROULETTE_BET_MS,
   ROULETTE_HISTORY,
   SPIN_MS,
@@ -114,7 +114,7 @@ export class RouletteTable implements TableHost {
     // Раунд не записался — аннулируется сразу, чтобы стол не показывал выигрыши, которых никто не получил.
     if (!this.ctx.payOut(this.game.results() ?? [])) return this.endRound();
     this.history = [this.game.view().number!, ...this.history].slice(0, ROULETTE_HISTORY);
-    this.timer.set(RESULT_MS, () => this.endRound());
+    this.timer.set(ROULETTE_RESULT_MS, () => this.endRound());
     this.ctx.publish();
   }
 

@@ -1,5 +1,5 @@
 import {
-  RESULT_MS,
+  ROULETTE_RESULT_MS,
   ROULETTE_BET_MS,
   SPIN_MS,
   type Card,
@@ -49,7 +49,7 @@ function setup({ numbers = [1], bank = {} as Record<number, number>, players = [
   const playRound = () => {
     rooms.rouletteBet(1, 'red', 5);
     rooms.rouletteReady(1);
-    vi.advanceTimersByTime(SPIN_MS + RESULT_MS);
+    vi.advanceTimersByTime(SPIN_MS + ROULETTE_RESULT_MS);
   };
   return { rooms, sent, last, settled, notified, balances, playRound, breakSettle: () => (failSettle = true) };
 }
@@ -148,7 +148,7 @@ describe('starting the spin', () => {
     expect(last().phase).toBe('spinning');
     vi.advanceTimersByTime(SPIN_MS);
     expect(settled[0]!.results).toHaveLength(2);
-    vi.advanceTimersByTime(RESULT_MS);
+    vi.advanceTimersByTime(ROULETTE_RESULT_MS);
     expect(last().players.map((item) => item.player.id)).toEqual([1]);
   });
 
@@ -180,7 +180,7 @@ describe('starting the spin', () => {
 });
 
 describe('spin and result', () => {
-  it('settles through the wallet only when the wheel stops, then shows the result for 3 seconds', () => {
+  it('settles through the wallet only when the wheel stops, then shows the result for 5 seconds', () => {
     const { rooms, last, settled, notified } = setup();
     rooms.rouletteBet(1, 'n1', 10);
     rooms.rouletteBet(1, 'black', 20);
@@ -199,9 +199,9 @@ describe('spin and result', () => {
       },
     ]);
     expect(notified).toEqual([[1, 1330]]);
-    expect(last()).toMatchObject({ phase: 'result', number: 1, timeLeftMs: RESULT_MS, players: [{ net: 330 }, { net: null }] });
+    expect(last()).toMatchObject({ phase: 'result', number: 1, timeLeftMs: ROULETTE_RESULT_MS, players: [{ net: 330 }, { net: null }] });
 
-    vi.advanceTimersByTime(RESULT_MS);
+    vi.advanceTimersByTime(ROULETTE_RESULT_MS);
     expect(last()).toMatchObject({ phase: 'waiting', number: null, timeLeftMs: null, players: [{ bets: {}, ready: false, net: null }, {}] });
   });
 

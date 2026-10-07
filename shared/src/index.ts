@@ -159,6 +159,8 @@ export interface BjDetails {
 // Сколько длится приём ставок после первой ставки, вращение колеса.
 export const ROULETTE_BET_MS = 25_000;
 export const SPIN_MS = 5_000;
+// Сколько показывается результат раунда рулетки (в блэкджеке — RESULT_MS).
+export const ROULETTE_RESULT_MS = 5_000;
 // Сколько последних выпавших чисел помнит стол.
 export const ROULETTE_HISTORY = 5;
 // Сколько действий со ставками (поставить, сбросить, «Готов») игрок может сделать за CHAT_RATE_WINDOW_MS.
