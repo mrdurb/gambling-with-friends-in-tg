@@ -1,0 +1,178 @@
+/* Экран покера. Общие части стола (шапка, панель, чат) — в table.css; выбор реакции — в roulette.css. */
+@import './roulette.css';
+
+.p-felt {
+  position: relative;
+  flex: none;
+  height: 400px;
+  margin: 34px calc(40px + var(--inset-right)) 34px calc(40px + var(--inset-left));
+  border: 6px solid #5a3d1b;
+  border-radius: 50% / 46%;
+  background: radial-gradient(ellipse at center, #1f7a4d 0%, #14573a 70%, #0f4630 100%);
+}
+
+.p-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transform: translate(-50%, -50%);
+}
+
+.p-pot {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.p-pot .hint {
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 400;
+}
+
+.p-seat {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  width: 72px;
+  padding: 3px 2px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: var(--tgui--bg_color);
+  font-size: 11px;
+  line-height: 1.2;
+  transform: translate(-50%, -50%);
+}
+
+.p-seat.empty {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.tbl .p-seat.empty button {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.p-seat.turn {
+  border-color: #f5c542;
+}
+
+.p-seat.folded,
+.p-seat.offline {
+  opacity: 0.55;
+}
+
+.p-seat .who {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.p-stack {
+  font-weight: 700;
+}
+
+.p-button {
+  position: absolute;
+  top: -4px;
+  left: -12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  color: #1c1c1e;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.p-bet {
+  position: absolute;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #f5c542;
+  color: #1c1c1e;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+}
+
+.cards.small {
+  gap: 2px;
+  min-height: 0;
+}
+
+.cards.small .card {
+  width: 20px;
+  height: 28px;
+  border-radius: 3px;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.cards.big .card {
+  width: 46px;
+  height: 64px;
+  border-radius: 6px;
+  font-size: 19px;
+}
+
+.p-own {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 var(--side-right) 8px var(--side-left);
+}
+
+.tbl button.p-own-card {
+  padding: 0;
+  border-radius: 6px;
+  background: none;
+  line-height: 0;
+}
+
+.tbl button.p-own-card:disabled {
+  opacity: 1;
+}
+
+.tbl button.p-own-card:not(:disabled) {
+  outline: 2px solid #f5c542;
+  outline-offset: 2px;
+}
+
+.p-own-stack {
+  display: flex;
+  flex-direction: column;
+  margin-left: 8px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.panel input[type='range'] {
+  width: 100%;
+  accent-color: var(--tgui--button_color);
+}
+
+/* Панель прижата к низу экрана, даже когда стол короче него. */
+.p-felt ~ .bottom {
+  margin-top: auto;
+}
+
+.p-felt ~ .bottom .status .hint {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}

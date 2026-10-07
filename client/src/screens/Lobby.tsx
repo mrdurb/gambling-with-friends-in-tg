@@ -8,7 +8,7 @@ import { canAddToHomeScreen, promptAddToHomeScreen } from '../telegram.ts';
 const GAMES: { title: string; game?: GameId }[] = [
   { title: 'Блэкджек', game: 'blackjack' },
   { title: 'Рулетка', game: 'roulette' },
-  { title: 'Покер' },
+  { title: 'Покер', game: 'poker' },
 ];
 
 interface Props {

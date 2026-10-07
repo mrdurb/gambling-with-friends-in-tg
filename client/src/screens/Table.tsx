@@ -5,6 +5,7 @@ import { playerName } from '../components/PlayerAvatar.tsx';
 import { useTable } from '../realtime.ts';
 import { shareInvite } from '../telegram.ts';
 import { BlackjackTable } from './BlackjackTable.tsx';
+import { PokerTable } from './PokerTable.tsx';
 import { RouletteTable } from './RouletteTable.tsx';
 
 interface Props {
@@ -102,8 +103,10 @@ export function Table({ code, me, onOpenCashier, onBack }: Props) {
       {notice && <div className="tbl-notice">{notice}</div>}
       {snapshot.kind === 'blackjack' ? (
         <BlackjackTable snapshot={snapshot} me={me} connection={connection} onOpenCashier={onOpenCashier} chat={chat} />
-      ) : (
+      ) : snapshot.kind === 'roulette' ? (
         <RouletteTable snapshot={snapshot} me={me} connection={connection} onOpenCashier={onOpenCashier} chat={chat} />
+      ) : (
+        <PokerTable snapshot={snapshot} me={me} connection={connection} onOpenCashier={onOpenCashier} chat={chat} />
       )}
     </div>
   );

@@ -1,4 +1,4 @@
-import type { GameId, Me, PlayerStats, RatingRow, TableInfo } from '@casino/shared';
+import type { GameId, Me, PlayerStats, PokerMode, RatingRow, TableInfo } from '@casino/shared';
 import { getAuthHeader } from './telegram.ts';
 
 export class UnauthorizedError extends Error {}
@@ -30,6 +30,8 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 export const fetchMe = () => request<Me>('/api/me');
 export const withdrawFromCashier = (amount: number) => request<{ balance: number }>('/api/cashier', { amount });
 export const fetchMyTables = (game: GameId) => request<TableInfo[]>(`/api/tables?game=${game}`);
-export const createTable = (game: GameId) => request<TableInfo>('/api/tables', { game });
+// poker — режим и большой блайнд стола покера; для остальных игр не передаётся.
+export const createTable = (game: GameId, poker?: { mode: PokerMode; blinds: number }) =>
+  request<TableInfo>('/api/tables', { game, ...poker });
 export const fetchRating = () => request<RatingRow[]>('/api/rating');
 export const fetchStats = (userId: number) => request<PlayerStats>(`/api/stats/${userId}`);

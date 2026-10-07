@@ -35,7 +35,7 @@ export function Stats({ userId, onBack }: Props) {
     );
   }
 
-  const { player, blackjack: bj, roulette } = stats;
+  const { player, blackjack: bj, roulette, poker } = stats;
   const row = (label: string, value: string) => (
     <Cell key={label} after={value}>
       {label}
@@ -78,6 +78,12 @@ export function Stats({ userId, onBack }: Props) {
         {row('Поставлено всего', formatChips(roulette.wagered))}
         {row('Самый крупный выигрыш за раунд', formatChips(roulette.biggestWin))}
         {row('Угадано чисел', formatChips(roulette.numberHits))}
+      </Section>
+      <Section header="Покер">
+        {row('Раздач сыграно', formatChips(poker.hands))}
+        {row('Чистый результат', formatSigned(poker.net))}
+        {row('Самый крупный забранный банк', formatChips(poker.biggestPot))}
+        {row('Выиграно на вскрытии', formatChips(poker.showdownsWon))}
       </Section>
       <Section header="Касса">
         {row('Походов в кассу', formatChips(bj.cashierVisits))}

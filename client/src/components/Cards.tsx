@@ -12,10 +12,10 @@ function CardFace({ card }: { card: Card }) {
   );
 }
 
-// hiddenCount — сколько закрытых карт дорисовать после открытых.
-export function Cards({ cards, hiddenCount = 0 }: { cards: Card[]; hiddenCount?: number }) {
+// hiddenCount — сколько закрытых карт дорисовать после открытых; size — размер карт (по умолчанию обычный).
+export function Cards({ cards, hiddenCount = 0, size }: { cards: Card[]; hiddenCount?: number; size?: 'small' | 'big' }) {
   return (
-    <span className="cards">
+    <span className={size ? `cards ${size}` : 'cards'}>
       {cards.map((card, index) => (
         <CardFace key={index} card={card} />
       ))}
