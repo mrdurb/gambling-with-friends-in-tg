@@ -81,6 +81,7 @@ export class Blackjack {
   private holeHidden = false;
   // Текущая раздача началась с заново перетасованного башмака.
   private reshuffled = false;
+  private everDealt = false;
   private readonly seats = new Map<number, SeatState>();
   private turn: { seat: number; hand: number } | null = null;
 
@@ -124,8 +125,12 @@ export class Blackjack {
 
   start(): void {
     if (this.phase !== 'betting') return;
-    this.reshuffled = this.shoe.length < RESHUFFLE_BELOW;
-    if (this.reshuffled) this.shoe = this.newShoe();
+    if (this.shoe.length < RESHUFFLE_BELOW) {
+      // Первый башмак за столом — не перетасовка, оповещать не о чем.
+      this.reshuffled = this.everDealt;
+      this.shoe = this.newShoe();
+    }
+    this.everDealt = true;
 
     const order = [...this.seats.keys()].sort((a, b) => a - b);
     for (const seat of order) {

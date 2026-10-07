@@ -378,9 +378,9 @@ describe('between rounds', () => {
     };
     for (let i = 0; i < 40; i++) playRound();
 
-    expect(flags[0]).toBe(true);
-    expect(flags[1]).toBe(false);
-    expect(flags.filter(Boolean)).toHaveLength(shuffles());
+    // Первый башмак за столом — не перетасовка.
+    expect(flags[0]).toBe(false);
+    expect(flags.filter(Boolean)).toHaveLength(shuffles() - 1);
     expect(shuffles()).toBeGreaterThan(1);
   });
 
