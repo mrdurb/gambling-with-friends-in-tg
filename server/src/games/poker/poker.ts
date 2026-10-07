@@ -302,7 +302,11 @@ export class PokerHand {
     for (let step = 1; step <= this.order.length; step++) {
       const seat = this.order[(start + step) % this.order.length]!;
       const state = this.seats.get(seat)!;
-      if (!state.folded && state.stack > 0 && (!state.acted || state.bet < this.currentBet)) return seat;
+      if (state.folded || state.stack === 0) continue;
+      if (state.bet < this.currentBet) return seat;
+      // Доставлять нечего: ход нужен, только если есть с кем торговаться дальше.
+      const rivals = this.live().some((other) => other !== state && other.stack > 0);
+      if (!state.acted && rivals) return seat;
     }
     return null;
   }

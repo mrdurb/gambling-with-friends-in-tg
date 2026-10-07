@@ -412,3 +412,122 @@ describe('what the table needs', () => {
     expect(hand.stake(5)).toBe(0);
   });
 });
+
+describe('hold\'em 3-1', () => {
+  const start = () =>
+    deal({
+      mode: 'pineapple',
+      stacks: { 0: 1000, 1: 1000, 2: 1000 },
+      button: 0,
+      holes: { 0: '9C AS AD', 1: 'KD 3C KC', 2: '7D 7C 2S' },
+    });
+
+  it('deals three cards and waits for everyone to discard before any betting', () => {
+    const hand = start();
+    expect(hand.phase).toBe('discard');
+    expect(hand.cardsOf(0)).toHaveLength(3);
+    expect(hand.view().turn).toBeNull();
+    expect([0, 1, 2].map((seat) => seatOf(hand, seat).bet)).toEqual([0, 5, 10]); // блайнды уже стоят
+    expect(hand.act(0, 'call')).toEqual({ ok: false, error: 'not_your_turn' });
+    expect(hand.timeout()).toBeNull();
+
+    expect(hand.discard(0, 0)).toEqual({ ok: true });
+    expect(text(hand.cardsOf(0))).toBe('AS AD');
+    expect(seatOf(hand, 0).discarded).toBe(true);
+    expect(seatOf(hand, 1).discarded).toBe(false);
+    hand.discard(1, 1);
+    expect(hand.phase).toBe('discard');
+    hand.discard(2, 2);
+
+    expect(hand.phase).toBe('preflop');
+    expect(hand.view().turn).toMatchObject({ seat: 0, toCall: 10 });
+    expect([0, 1, 2].map((seat) => text(hand.cardsOf(seat)))).toEqual(['AS AD', 'KD KC', '7D 7C']);
+  });
+
+  it('refuses a card that is not there, a second discard and a discard outside the phase', () => {
+    const hand = start();
+    for (const index of [3, -1, 1.5, Number.NaN, '0' as unknown as number]) {
+      expect(hand.discard(0, index)).toEqual({ ok: false, error: 'bad_card' });
+    }
+    expect(hand.discard(7, 0)).toEqual({ ok: false, error: 'not_allowed' });
+    hand.discard(0, 0);
+    expect(hand.discard(0, 0)).toEqual({ ok: false, error: 'not_allowed' });
+    hand.autoDiscard();
+    expect(hand.discard(1, 0)).toEqual({ ok: false, error: 'not_allowed' });
+
+    const plain = deal({ stacks: { 0: 1000, 1: 1000 } });
+    expect(plain.discard(0, 0)).toEqual({ ok: false, error: 'not_allowed' });
+  });
+
+  it('discards the lowest card for those who ran out of time', () => {
+    const hand = start();
+    hand.discard(1, 0); // сам сбросил короля
+    hand.autoDiscard();
+    expect(hand.phase).toBe('preflop');
+    expect([0, 1, 2].map((seat) => text(hand.cardsOf(seat)))).toEqual(['AS AD', '3C KC', '7D 7C']);
+    hand.autoDiscard(); // вне фазы сброса ничего не делает
+    expect(text(hand.cardsOf(0))).toBe('AS AD');
+  });
+
+  it('plays on as ordinary hold\'em and judges the two cards that were kept', () => {
+    const hand = start();
+    hand.autoDiscard();
+    checkDown(hand);
+    expect(hand.phase).toBe('result');
+    // Борд K Q J 5 5: у места 1 фулл-хаус на королях.
+    expect(seatOf(hand, 1)).toMatchObject({ won: 30, hand: 'Фулл-хаус' });
+  });
+
+  it('does not wait for a player who left during the discard', () => {
+    const hand = start();
+    hand.discard(0, 0);
+    hand.discard(1, 0);
+    hand.forfeit(2);
+    expect(hand.phase).toBe('preflop');
+    const pair = start();
+    pair.forfeit(1);
+    pair.forfeit(2);
+    expect(pair.phase).toBe('result');
+  });
+});
+
+describe('hold\'em 6+', () => {
+  it('lets a flush beat a full house', () => {
+    // Борд K♠ Q♠ 9♠ 9♥ 6♦: место 0 — флеш, место 1 — фулл-хаус.
+    const hand = deal({
+      mode: 'short',
+      stacks: { 0: 1000, 1: 1000 },
+      button: 0,
+      holes: { 0: 'AS 7S', 1: 'KD 9C' },
+      board: 'KS QS 9S 9H 6D',
+    });
+    checkDown(hand);
+    expect(seatOf(hand, 0)).toMatchObject({ won: 20, hand: 'Флеш' });
+
+    const usual = deal({ stacks: { 0: 1000, 1: 1000 }, button: 0, holes: { 0: 'AS 7S', 1: 'KD 9C' }, board: 'KS QS 9S 9H 6D' });
+    checkDown(usual);
+    expect(seatOf(usual, 1)).toMatchObject({ won: 20, hand: 'Фулл-хаус' });
+  });
+
+  it('counts A-6-7-8-9 as a straight, which beats trips', () => {
+    const hand = deal({
+      mode: 'short',
+      stacks: { 0: 1000, 1: 1000 },
+      button: 0,
+      holes: { 0: 'AS 6D', 1: 'KD KC' },
+      board: 'KS 7H 8D 9C JS',
+    });
+    checkDown(hand);
+    expect(seatOf(hand, 0)).toMatchObject({ won: 20, hand: 'Стрит' });
+  });
+});
+
+describe('nothing left to decide', () => {
+  it('does not ask the big blind for a move when the only opponent is all-in for less', () => {
+    const hand = deal({ stacks: { 0: 3, 1: 1000 }, button: 0 });
+    // Малый блайнд (кнопка) в олл-ине на 3; большому блайнду решать нечего.
+    expect(hand.view().turn).toBeNull();
+    expect(hand.runoutPending()).toBe(true);
+    expect(seatOf(hand, 1).stack).toBe(997); // лишние 7 вернулись
+  });
+});
