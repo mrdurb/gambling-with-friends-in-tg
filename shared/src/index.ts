@@ -275,6 +275,22 @@ export interface RouletteDetails {
   bets: RouletteBets;
 }
 
+// ── Покер ────────────────────────────────────────────────────────────────
+
+// Стек при посадке и предел докупки — в больших блайндах.
+export const POKER_MIN_BUYIN_BB = 40;
+export const POKER_MAX_BUYIN_BB = 100;
+// Время на ход, на сброс карты в 3-1, пауза между улицами при выкладке борда, показ результата.
+export const POKER_TURN_MS = 30_000;
+export const POKER_DISCARD_MS = 15_000;
+export const POKER_RUNOUT_MS = 1_500;
+export const POKER_RESULT_MS = 5_000;
+
+export type PokerPhase = 'waiting' | 'discard' | 'preflop' | 'flop' | 'turn' | 'river' | 'result';
+// waiting — сидит, но в текущей раздаче не участвует.
+export type PokerSeatState = 'waiting' | 'active' | 'folded' | 'allin';
+export type PokerActionKind = 'fold' | 'check' | 'call' | 'raise';
+
 // ── Чат и реакции ────────────────────────────────────────────────────────
 
 export const CHAT_MAX_LENGTH = 200;
