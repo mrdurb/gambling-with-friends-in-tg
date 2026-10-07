@@ -19,7 +19,7 @@ export const SEATS = 6;
 // Сколько место ждёт игрока без связи, пока за столом не идёт раздача.
 export const DISCONNECT_GRACE_MS = 60_000;
 
-export type GameId = 'blackjack';
+export type GameId = 'blackjack' | 'roulette';
 
 export interface PlayerInfo {
   id: number;
@@ -42,12 +42,15 @@ export interface SeatView {
   leaving: boolean;
 }
 
-export interface TableSnapshot {
+export interface BlackjackSnapshot {
+  kind: 'blackjack';
   table: TableInfo;
   seats: (SeatView | null)[];
   spectators: number;
   game: BjView;
 }
+
+export type TableSnapshot = BlackjackSnapshot;
 
 export type Ack<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 

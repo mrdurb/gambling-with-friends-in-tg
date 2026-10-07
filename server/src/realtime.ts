@@ -43,7 +43,7 @@ export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink
   const rooms = new Rooms({
     broadcast: (snapshot) => io.to(snapshot.table.code).emit('table:snapshot', snapshot),
     balanceOf: (userId) => balanceOf(db, userId),
-    settle: (tableCode, results) => settleRound(db, tableCode, 'blackjack', results),
+    settle: (tableCode, results, game) => settleRound(db, tableCode, game, results),
     notifyBalance: (userId, balance) => connections.get(userId)?.emit('balance', balance),
     newShoe: newShoe ?? (() => shuffledShoe(randomInt)),
   });
