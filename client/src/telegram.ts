@@ -1,4 +1,12 @@
-import { init, retrieveLaunchParams, retrieveRawInitData, shareURL } from '@tma.js/sdk-react';
+import {
+  addToHomeScreen,
+  init,
+  postEvent,
+  retrieveLaunchParams,
+  retrieveRawInitData,
+  shareURL,
+  viewport,
+} from '@tma.js/sdk-react';
 
 // Вне Telegram (режим разработки в браузере) SDK не инициализируется; функции ниже это учитывают.
 try {
@@ -49,5 +57,47 @@ export async function shareInvite(link: string): Promise<'shared' | 'copied' | '
     return 'copied';
   } catch {
     return 'failed';
+  }
+}
+
+// Разворачивает приложение на весь экран телефона и фиксирует ориентацию.
+// Там, где Telegram этого не умеет (или вне Telegram), приложение остаётся в обычном виде.
+export async function setupViewport(): Promise<void> {
+  let platform = '';
+  try {
+    platform = retrieveLaunchParams().tgWebAppPlatform;
+  } catch {
+    return;
+  }
+  try {
+    await viewport.mount();
+    // Отступы безопасных зон становятся CSS-переменными --tg-viewport-*; ими пользуется app.css.
+    viewport.bindCssVars();
+    // На компьютере приложение удобнее в окне, поэтому полноэкранный режим — только на телефонах.
+    const mobile = platform === 'ios' || platform === 'android';
+    if (mobile && viewport.requestFullscreen.isAvailable()) await viewport.requestFullscreen();
+  } catch {
+    // Полноэкранный режим не поддерживается или отклонён.
+  }
+  try {
+    postEvent('web_app_toggle_orientation_lock', { locked: true });
+  } catch {
+    // Клиент Telegram старше, чем блокировка ориентации.
+  }
+}
+
+export const canAddToHomeScreen = (): boolean => {
+  try {
+    return addToHomeScreen.isAvailable();
+  } catch {
+    return false;
+  }
+};
+
+export function promptAddToHomeScreen(): void {
+  try {
+    addToHomeScreen();
+  } catch {
+    // Не поддерживается.
   }
 }

@@ -1,7 +1,7 @@
 .tbl {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  min-height: calc(100vh - var(--inset-top) - var(--inset-bottom));
   color: var(--tgui--text_color);
   font-size: 14px;
 }
@@ -170,14 +170,14 @@
 
 .bottom {
   position: sticky;
-  bottom: 0;
+  bottom: var(--inset-bottom);
 }
 
 .panel {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  padding: 10px 12px;
   background: var(--tgui--bg_color);
   border-top: 1px solid var(--tgui--divider);
 }
