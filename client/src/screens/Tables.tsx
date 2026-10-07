@@ -1,27 +1,30 @@
-import type { TableInfo } from '@casino/shared';
+import type { GameId, TableInfo } from '@casino/shared';
 import { Button, Cell, List, Placeholder, Section } from '@telegram-apps/telegram-ui';
 import { useEffect, useState } from 'react';
 import { createTable, fetchMyTables } from '../api.ts';
 
+const TITLES: Record<GameId, string> = { blackjack: 'Блэкджек', roulette: 'Рулетка' };
+
 interface Props {
+  game: GameId;
   onOpen: (code: string) => void;
   onBack: () => void;
 }
 
-export function Tables({ onOpen, onBack }: Props) {
+export function Tables({ game, onOpen, onBack }: Props) {
   const [tables, setTables] = useState<TableInfo[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    fetchMyTables().then(setTables, () => setFailed(true));
-  }, []);
+    fetchMyTables(game).then(setTables, () => setFailed(true));
+  }, [game]);
 
   async function create() {
     setBusy(true);
     setFailed(false);
     try {
-      onOpen((await createTable()).code);
+      onOpen((await createTable(game)).code);
     } catch {
       setFailed(true);
       setBusy(false);
@@ -33,7 +36,7 @@ export function Tables({ onOpen, onBack }: Props) {
       <Section>
         <Cell onClick={onBack}>‹ В лобби</Cell>
       </Section>
-      <Section header="Блэкджек" footer={failed ? 'Не удалось связаться с сервером. Попробуйте ещё раз.' : undefined}>
+      <Section header={TITLES[game]} footer={failed ? 'Не удалось связаться с сервером. Попробуйте ещё раз.' : undefined}>
         <div style={{ padding: 16 }}>
           <Button stretched disabled={busy} onClick={create}>
             Создать стол

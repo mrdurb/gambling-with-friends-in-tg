@@ -1,4 +1,4 @@
-import type { Me } from '@casino/shared';
+import type { GameId, Me } from '@casino/shared';
 import { Placeholder, Spinner } from '@telegram-apps/telegram-ui';
 import { useEffect, useState } from 'react';
 import { fetchMe, UnauthorizedError } from './api.ts';
@@ -15,7 +15,7 @@ type Screen =
   | { name: 'lobby' }
   // back — куда вернуться из кассы (в лобби или за стол).
   | { name: 'cashier'; back: Screen }
-  | { name: 'tables' }
+  | { name: 'tables'; game: GameId }
   | { name: 'table'; code: string }
   | { name: 'rating' }
   | { name: 'stats'; userId: number; back: Screen };
@@ -68,7 +68,11 @@ export function App() {
           );
         case 'tables':
           return (
-            <Tables onOpen={(code) => setScreen({ name: 'table', code })} onBack={() => setScreen({ name: 'lobby' })} />
+            <Tables
+              game={screen.game}
+              onOpen={(code) => setScreen({ name: 'table', code })}
+              onBack={() => setScreen({ name: 'lobby' })}
+            />
           );
         case 'table':
           return (
@@ -76,7 +80,7 @@ export function App() {
               code={screen.code}
               me={me}
               onOpenCashier={() => setScreen({ name: 'cashier', back: screen })}
-              onBack={() => setScreen({ name: 'tables' })}
+              onBack={(game) => setScreen(game ? { name: 'tables', game } : { name: 'lobby' })}
             />
           );
         case 'rating':
@@ -96,7 +100,7 @@ export function App() {
               onOpenRating={() => setScreen({ name: 'rating' })}
               onOpenMyStats={() => setScreen({ name: 'stats', userId: me.id, back: screen })}
               onOpenCashier={() => setScreen({ name: 'cashier', back: screen })}
-              onOpenGame={() => setScreen({ name: 'tables' })}
+              onOpenGame={(game) => setScreen({ name: 'tables', game })}
             />
           );
       }

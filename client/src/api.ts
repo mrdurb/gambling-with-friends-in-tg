@@ -1,4 +1,4 @@
-import type { Me, PlayerStats, RatingRow, TableInfo } from '@casino/shared';
+import type { GameId, Me, PlayerStats, RatingRow, TableInfo } from '@casino/shared';
 import { getAuthHeader } from './telegram.ts';
 
 export class UnauthorizedError extends Error {}
@@ -29,7 +29,7 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 
 export const fetchMe = () => request<Me>('/api/me');
 export const withdrawFromCashier = (amount: number) => request<{ balance: number }>('/api/cashier', { amount });
-export const fetchMyTables = () => request<TableInfo[]>('/api/tables');
-export const createTable = () => request<TableInfo>('/api/tables', {});
+export const fetchMyTables = (game: GameId) => request<TableInfo[]>(`/api/tables?game=${game}`);
+export const createTable = (game: GameId) => request<TableInfo>('/api/tables', { game });
 export const fetchRating = () => request<RatingRow[]>('/api/rating');
 export const fetchStats = (userId: number) => request<PlayerStats>(`/api/stats/${userId}`);

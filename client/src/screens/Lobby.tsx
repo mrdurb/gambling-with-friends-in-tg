@@ -1,19 +1,20 @@
-import type { Me } from '@casino/shared';
+import type { GameId, Me } from '@casino/shared';
 import { Cell, List, Section } from '@telegram-apps/telegram-ui';
 import { PlayerAvatar, playerName } from '../components/PlayerAvatar.tsx';
 import { formatChips } from '../format.ts';
 import { canAddToHomeScreen, promptAddToHomeScreen } from '../telegram.ts';
 
-const GAMES = [
-  { id: 'blackjack', title: 'Блэкджек', available: true },
-  { id: 'poker', title: 'Покер', available: false },
-  { id: 'roulette', title: 'Рулетка', available: false },
+// game — игра, если она уже доступна.
+const GAMES: { title: string; game?: GameId }[] = [
+  { title: 'Блэкджек', game: 'blackjack' },
+  { title: 'Рулетка', game: 'roulette' },
+  { title: 'Покер' },
 ];
 
 interface Props {
   me: Me;
   onOpenCashier: () => void;
-  onOpenGame: () => void;
+  onOpenGame: (game: GameId) => void;
   onOpenRating: () => void;
   onOpenMyStats: () => void;
 }
@@ -32,14 +33,9 @@ export function Lobby({ me, onOpenCashier, onOpenGame, onOpenRating, onOpenMySta
         </Cell>
       </Section>
       <Section header="Игры">
-        {GAMES.map((game) => (
-          <Cell
-            key={game.id}
-            disabled={!game.available}
-            after={game.available ? undefined : 'Скоро'}
-            onClick={game.available ? onOpenGame : undefined}
-          >
-            {game.title}
+        {GAMES.map(({ title, game }) => (
+          <Cell key={title} disabled={!game} after={game ? undefined : 'Скоро'} onClick={game && (() => onOpenGame(game))}>
+            {title}
           </Cell>
         ))}
       </Section>

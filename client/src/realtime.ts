@@ -6,6 +6,7 @@ import {
   type ChatMessage,
   type ClientToServerEvents,
   type ReactionEvent,
+  type RouletteField,
   type ServerToClientEvents,
   type TableSnapshot,
 } from '@casino/shared';
@@ -57,6 +58,11 @@ export interface TableConnection {
   reactions: Record<number, string>;
   sendChat: (text: string) => Promise<Ack>;
   sendReaction: (value: string) => void;
+  // Кто отправил реакцию последним, пока открыт этот экран стола.
+  lastReactor: number | null;
+  rouletteBet: (field: RouletteField, amount: number) => Promise<Ack>;
+  rouletteClear: () => Promise<Ack>;
+  rouletteReady: () => Promise<Ack>;
   // Вернуть управление этому устройству после вытеснения.
   reclaim: () => void;
 }
@@ -67,6 +73,7 @@ export function useTable(code: string): TableConnection {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messageCount, setMessageCount] = useState(0);
   const [reactions, setReactions] = useState<Record<number, string>>({});
+  const [lastReactor, setLastReactor] = useState<number | null>(null);
 
   useEffect(() => {
     const client = getSocket();
@@ -105,6 +112,7 @@ export function useTable(code: string): TableConnection {
     const fading = new Map<number, ReturnType<typeof setTimeout>>();
     const onReaction = ({ userId, reaction }: ReactionEvent) => {
       setReactions((current) => ({ ...current, [userId]: reaction.value }));
+      setLastReactor(userId);
       clearTimeout(fading.get(userId));
       fading.set(
         userId,
@@ -114,6 +122,7 @@ export function useTable(code: string): TableConnection {
     setMessages([]);
     setMessageCount(0);
     setReactions({});
+    setLastReactor(null);
 
     client.on('table:snapshot', setSnapshot);
     client.on('chat:message', onMessage);
@@ -146,10 +155,34 @@ export function useTable(code: string): TableConnection {
     (value: string) => void getSocket().emit('reaction:send', { kind: 'emoji', value }, () => {}),
     [],
   );
+  const rouletteBet = useCallback(
+    (field: RouletteField, amount: number) =>
+      new Promise<Ack>((resolve) => getSocket().emit('roulette:bet', field, amount, resolve)),
+    [],
+  );
+  const rouletteClear = useCallback(() => new Promise<Ack>((resolve) => getSocket().emit('roulette:clear', resolve)), []);
+  const rouletteReady = useCallback(() => new Promise<Ack>((resolve) => getSocket().emit('roulette:ready', resolve)), []);
   const reclaim = useCallback(() => {
     setStatus('connecting');
     getSocket().connect();
   }, []);
 
-  return { status, snapshot, sit, stand, bet, act, messages, messageCount, reactions, sendChat, sendReaction, reclaim };
+  return {
+    status,
+    snapshot,
+    sit,
+    stand,
+    bet,
+    act,
+    messages,
+    messageCount,
+    reactions,
+    lastReactor,
+    sendChat,
+    sendReaction,
+    rouletteBet,
+    rouletteClear,
+    rouletteReady,
+    reclaim,
+  };
 }

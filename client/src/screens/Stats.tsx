@@ -35,7 +35,7 @@ export function Stats({ userId, onBack }: Props) {
     );
   }
 
-  const { player, blackjack: bj } = stats;
+  const { player, blackjack: bj, roulette } = stats;
   const row = (label: string, value: string) => (
     <Cell key={label} after={value}>
       {label}
@@ -46,18 +46,18 @@ export function Stats({ userId, onBack }: Props) {
     <List>
       {back}
       <Section>
-        <Cell before={<PlayerAvatar player={player} size={48} />} subtitle="Статистика по блэкджеку">
+        <Cell before={<PlayerAvatar player={player} size={48} />} subtitle="Статистика">
           {playerName(player)}
         </Cell>
       </Section>
-      <Section header="Фишки">
+      <Section header="Блэкджек: фишки">
         {row('Чистый результат', formatSigned(bj.net))}
         {row('Выиграно', formatChips(bj.won))}
         {row('Проиграно', formatChips(bj.lost))}
         {row('Самый крупный выигрыш за раздачу', formatChips(bj.biggestWin))}
         {row('Самая крупная ставка', formatChips(bj.biggestBet))}
       </Section>
-      <Section header="Раздачи">
+      <Section header="Блэкджек: раздачи">
         {row('Сыграно', formatChips(bj.rounds))}
         {row('Победы', formatChips(bj.wins))}
         {row('Поражения', formatChips(bj.losses))}
@@ -68,9 +68,16 @@ export function Stats({ userId, onBack }: Props) {
         {row('Самая длинная серия побед', formatChips(bj.longestWinStreak))}
         {row('Самая длинная серия поражений', formatChips(bj.longestLoseStreak))}
       </Section>
-      <Section header="Удвоения">
+      <Section header="Блэкджек: удвоения">
         {row('Удваивал', formatChips(bj.doubles))}
         {row('Удвоений окупилось', formatPercent(bj.doublesWonRate))}
+      </Section>
+      <Section header="Рулетка">
+        {row('Раундов сыграно', formatChips(roulette.rounds))}
+        {row('Чистый результат', formatSigned(roulette.net))}
+        {row('Поставлено всего', formatChips(roulette.wagered))}
+        {row('Самый крупный выигрыш за раунд', formatChips(roulette.biggestWin))}
+        {row('Угадано чисел', formatChips(roulette.numberHits))}
       </Section>
       <Section header="Касса">
         {row('Походов в кассу', formatChips(bj.cashierVisits))}
