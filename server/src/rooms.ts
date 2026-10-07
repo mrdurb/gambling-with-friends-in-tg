@@ -1,6 +1,6 @@
-import type { Ack, BjAction, Card, GameId, PlayerInfo, RouletteField, TableInfo, TableSnapshot } from '@casino/shared';
+import type { Ack, Card, GameId, PlayerInfo, TableInfo, TableSnapshot } from '@casino/shared';
 import { BlackjackTable } from './rooms/blackjack-table.ts';
-import type { HostContext, TableHost } from './rooms/host.ts';
+import { fail, type HostContext, type SeatRegistry, type TableHost } from './rooms/host.ts';
 import { RouletteTable } from './rooms/roulette-table.ts';
 import type { PlayerResult } from './rounds.ts';
 
@@ -22,15 +22,13 @@ export interface RoomDeps {
   spinMs?: number;
 }
 
-const fail = (error: string): Ack => ({ ok: false, error });
-
 // Живое состояние столов: у кого какой стол открыт и какой ведущий его ведёт.
 // Сама игра — в ведущем стола (rooms/). О сокетах и базе не знает: всё внешнее приходит через deps.
 export class Rooms {
   private readonly rooms = new Map<string, Room>();
   private readonly presentAt = new Map<number, string>();
-  // Кто за каким столом блэкджека сидит.
-  private readonly seated = new Map<number, BlackjackTable>();
+  // Кто за каким столом с местами сидит: сидеть можно только за одним.
+  private readonly seated: SeatRegistry = new Map();
 
   constructor(private readonly deps: RoomDeps) {}
 
@@ -52,7 +50,7 @@ export class Rooms {
 
   // Игрок закрыл стол или потерял связь.
   exit(userId: number): void {
-    const room = this.rooms.get(this.presentAt.get(userId) ?? '');
+    const room = this.roomOf(userId);
     if (!room) return;
     room.ctx.present.delete(userId);
     this.presentAt.delete(userId);
@@ -60,35 +58,9 @@ export class Rooms {
     this.publish(room);
   }
 
-  sit(userId: number, index: number, force = false): Ack {
-    const room = this.rooms.get(this.presentAt.get(userId) ?? '');
-    if (!room) return fail('not_at_table');
-    if (!(room.host instanceof BlackjackTable)) return fail('wrong_game');
-    return room.host.sit(userId, index, force);
-  }
-
-  stand(userId: number): void {
-    this.seated.get(userId)?.stand(userId);
-  }
-
-  bet(userId: number, amount: number): Ack {
-    return this.seated.get(userId)?.bet(userId, amount) ?? fail('not_seated');
-  }
-
-  act(userId: number, action: BjAction): Ack {
-    return this.seated.get(userId)?.act(userId, action) ?? fail('not_seated');
-  }
-
-  rouletteBet(userId: number, field: RouletteField, amount: number): Ack {
-    return this.roulette(userId, (host) => host.bet(userId, field, amount));
-  }
-
-  rouletteClear(userId: number): Ack {
-    return this.roulette(userId, (host) => host.clear(userId));
-  }
-
-  rouletteReady(userId: number): Ack {
-    return this.roulette(userId, (host) => host.ready(userId));
+  // Игровое действие — за столом, который у игрока сейчас открыт. Что оно значит, решает ведущий стола.
+  action(userId: number, name: string, args: unknown[]): Ack {
+    return this.roomOf(userId)?.host.action(userId, name, args) ?? fail('not_at_table');
   }
 
   // Код стола, который у игрока сейчас открыт.
@@ -96,11 +68,12 @@ export class Rooms {
     return this.presentAt.get(userId) ?? null;
   }
 
-  // Реакции: в блэкджеке — только сидящим за этим столом, в рулетке — всем, у кого стол открыт.
   canReact(userId: number): boolean {
-    const room = this.rooms.get(this.presentAt.get(userId) ?? '');
-    if (!room) return false;
-    return room.host instanceof RouletteTable || this.seated.get(userId) === room.host;
+    return this.roomOf(userId)?.host.canReact(userId) ?? false;
+  }
+
+  private roomOf(userId: number): Room | undefined {
+    return this.rooms.get(this.presentAt.get(userId) ?? '');
   }
 
   private open(table: TableInfo): Room {
@@ -121,19 +94,17 @@ export class Rooms {
         }
       },
     };
-    const host =
-      table.game === 'roulette'
-        ? new RouletteTable(ctx, this.deps.spinNumber, this.deps.spinMs)
-        : new BlackjackTable(ctx, this.seated, this.deps.newShoe);
-    const room: Room = { ctx, host };
+    const room: Room = { ctx, host: this.host(ctx) };
     return room;
   }
 
-  // Действие рулетки — за столом, который у игрока сейчас открыт.
-  private roulette(userId: number, action: (host: RouletteTable) => Ack): Ack {
-    const room = this.rooms.get(this.presentAt.get(userId) ?? '');
-    if (!room) return fail('not_at_table');
-    return room.host instanceof RouletteTable ? action(room.host) : fail('wrong_game');
+  private host(ctx: HostContext): TableHost {
+    switch (ctx.table.game) {
+      case 'roulette':
+        return new RouletteTable(ctx, this.deps.spinNumber, this.deps.spinMs);
+      default:
+        return new BlackjackTable(ctx, this.seated, this.deps.newShoe);
+    }
   }
 
   // Баланс за вычетом всего, что у игрока сейчас на кону, — в том числе за столом,

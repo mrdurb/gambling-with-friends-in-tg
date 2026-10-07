@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import fastifyStatic from '@fastify/static';
-import { isGameId, type Me } from '@casino/shared';
+import { POKER_BLINDS, POKER_MODES, isGameId, type Me, type PokerOptions } from '@casino/shared';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { AuthError, authenticate, type AuthConfig } from './auth.ts';
 import type { Db } from './db.ts';
@@ -48,9 +48,17 @@ export function buildApp(db: Db, authConfig: AuthConfig, options: AppOptions = {
   // Игра не указана — блэкджек: так запрашивают клиенты, открытые до появления второй игры.
   app.post('/api/tables', async (request, reply) => {
     const me = currentUser(request);
-    const game = (request.body as { game?: unknown } | null)?.game ?? 'blackjack';
+    const body = (request.body ?? {}) as { game?: unknown; mode?: unknown; blinds?: unknown };
+    const game = body.game ?? 'blackjack';
     if (!isGameId(game)) return reply.code(400).send({ error: 'bad_game' });
-    return createTable(db, me, appLink, game);
+    if (game !== 'poker') return createTable(db, me, appLink, game);
+
+    // Режим и уровень блайндов (по большому блайнду) — только из списка.
+    const mode = POKER_MODES.find((item) => item === body.mode);
+    const blinds = POKER_BLINDS.find(([, big]) => big === body.blinds);
+    if (!mode || !blinds) return reply.code(400).send({ error: 'bad_options' });
+    const options: PokerOptions = { mode, blinds: [...blinds] };
+    return createTable(db, me, appLink, game, options);
   });
 
   app.get('/api/tables', async (request, reply) => {

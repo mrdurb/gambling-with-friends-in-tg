@@ -14,7 +14,7 @@ import {
 } from '@casino/shared';
 import { Blackjack } from '../games/blackjack.ts';
 import type { PlayerResult } from '../rounds.ts';
-import { PhaseTimer, type HostContext, type TableHost, type Timer } from './host.ts';
+import { PhaseTimer, WRONG_GAME, fail, type HostContext, type SeatRegistry, type TableHost, type Timer } from './host.ts';
 
 interface Seat {
   player: PlayerInfo;
@@ -29,7 +29,7 @@ interface Seat {
   timedOut: boolean;
 }
 
-const fail = (error: string): Ack => ({ ok: false, error });
+const ACTIONS: BjAction[] = ['hit', 'stand', 'double', 'split'];
 
 // Стол блэкджека: места, фазы раздачи и их таймеры, пропуски.
 // seated — общий для всех столов учёт «кто за каким столом сидит»: сидеть можно только за одним.
@@ -41,14 +41,30 @@ export class BlackjackTable implements TableHost {
 
   constructor(
     private readonly ctx: HostContext,
-    private readonly seated: Map<number, BlackjackTable>,
+    private readonly seated: SeatRegistry,
     newShoe: () => Card[],
   ) {
     this.game = new Blackjack(newShoe);
   }
 
-  get code(): string {
-    return this.ctx.table.code;
+  action(userId: number, name: string, [first, second]: unknown[]): Ack {
+    switch (name) {
+      case 'seat:take':
+        return this.sit(userId, first as number, second === true);
+      case 'seat:leave':
+        this.stand(userId);
+        return { ok: true };
+      case 'game:bet':
+        return typeof first === 'number' ? this.bet(userId, first) : fail('bad_bet');
+      case 'game:action':
+        return ACTIONS.includes(first as BjAction) ? this.act(userId, first as BjAction) : fail('not_allowed');
+      default:
+        return WRONG_GAME;
+    }
+  }
+
+  canReact(userId: number): boolean {
+    return this.seated.get(userId) === this;
   }
 
   enter(player: PlayerInfo): void {
@@ -69,7 +85,7 @@ export class BlackjackTable implements TableHost {
     }
   }
 
-  sit(userId: number, index: number, force: boolean): Ack {
+  private sit(userId: number, index: number, force: boolean): Ack {
     if (!Number.isInteger(index) || index < 0 || index >= SEATS) return fail('bad_seat');
 
     // Место этого же игрока, которое ещё доигрывает раздачу после «Встать».
@@ -120,7 +136,7 @@ export class BlackjackTable implements TableHost {
     if (!this.startIfEveryoneBet()) this.ctx.publish();
   }
 
-  bet(userId: number, amount: number): Ack {
+  private bet(userId: number, amount: number): Ack {
     const place = this.placeOf(userId);
     if (!place) return fail('not_seated');
 
@@ -132,7 +148,7 @@ export class BlackjackTable implements TableHost {
     return result;
   }
 
-  act(userId: number, action: BjAction): Ack {
+  private act(userId: number, action: BjAction): Ack {
     const place = this.placeOf(userId);
     if (!place) return fail('not_seated');
 

@@ -9,7 +9,7 @@ import {
   type TableSnapshot,
 } from '@casino/shared';
 import { Roulette } from '../games/roulette.ts';
-import { PhaseTimer, type HostContext, type TableHost } from './host.ts';
+import { PhaseTimer, WRONG_GAME, fail, type HostContext, type TableHost } from './host.ts';
 
 // Стол рулетки: мест нет, ставит любой, у кого стол открыт. Фазы и их таймеры, история чисел.
 export class RouletteTable implements TableHost {
@@ -33,7 +33,25 @@ export class RouletteTable implements TableHost {
   // на секунду, пока игрок ещё ставил. Но когда «Готов» нажмут оставшиеся, ушедшего ждать не будут.
   exit(): void {}
 
-  bet(userId: number, field: RouletteField, amount: number): Ack {
+  action(userId: number, name: string, [first, second]: unknown[]): Ack {
+    switch (name) {
+      case 'roulette:bet':
+        return typeof second === 'number' ? this.bet(userId, first as RouletteField, second) : fail('bad_bet');
+      case 'roulette:clear':
+        return this.clear(userId);
+      case 'roulette:ready':
+        return this.ready(userId);
+      default:
+        return WRONG_GAME;
+    }
+  }
+
+  // Реакции — всем, у кого стол открыт.
+  canReact(): boolean {
+    return true;
+  }
+
+  private bet(userId: number, field: RouletteField, amount: number): Ack {
     const first = this.game.phase === 'waiting';
     const result = this.game.bet(userId, field, amount, this.ctx.freeBalance(userId));
     if (!result.ok) return result;
@@ -43,7 +61,7 @@ export class RouletteTable implements TableHost {
     return result;
   }
 
-  clear(userId: number): Ack {
+  private clear(userId: number): Ack {
     const result = this.game.clear(userId);
     if (!result.ok) return result;
     this.bettors.delete(userId);
@@ -52,7 +70,7 @@ export class RouletteTable implements TableHost {
     return result;
   }
 
-  ready(userId: number): Ack {
+  private ready(userId: number): Ack {
     const result = this.game.ready(userId);
     if (!result.ok) return result;
     if (!this.spinIfAllReady()) this.ctx.publish();

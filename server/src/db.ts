@@ -56,6 +56,9 @@ export function openDb(path: string): Db {
     );
     CREATE INDEX IF NOT EXISTS round_results_user ON round_results(user_id, round_id);
   `);
+  // Столы, созданные до покера, настроек не имеют.
+  const tableColumns = db.prepare('PRAGMA table_info(tables)').all() as unknown as { name: string }[];
+  if (!tableColumns.some((column) => column.name === 'options')) db.exec('ALTER TABLE tables ADD COLUMN options TEXT');
   // Игроки, созданные до появления журнала, получили стартовые фишки без записи о них.
   db.prepare(`
     INSERT INTO ledger (user_id, type, amount, created_at)

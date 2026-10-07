@@ -6,7 +6,6 @@ import {
   CHAT_RATE_WINDOW_MS,
   ROULETTE_RATE_LIMIT,
   REACTIONS,
-  type BjAction,
   type Card,
   type ClientToServerEvents,
   type Me,
@@ -35,8 +34,6 @@ interface Deps {
 
 type Io = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, { user: Me }>;
 type Client = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, never>, { user: Me }>;
-
-const ACTIONS: BjAction[] = ['hit', 'stand', 'double', 'split'];
 
 const toPlayerInfo = ({ id, firstName, lastName, photoUrl }: Me): PlayerInfo => ({ id, firstName, lastName, photoUrl });
 
@@ -92,22 +89,13 @@ export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink
       rooms.exit(user.id);
     });
 
-    socket.on('seat:take', (seat, force, ack) => {
-      if (typeof ack !== 'function') return;
-      ack(rooms.sit(user.id, seat, force === true));
-    });
-
-    socket.on('seat:leave', () => rooms.stand(user.id));
-
-    socket.on('game:bet', (amount, ack) => {
-      if (typeof ack !== 'function') return;
-      ack(typeof amount === 'number' ? rooms.bet(user.id, amount) : { ok: false, error: 'bad_bet' });
-    });
-
-    socket.on('game:action', (action, ack) => {
-      if (typeof ack !== 'function') return;
-      ack(ACTIONS.includes(action) ? rooms.act(user.id, action) : { ok: false, error: 'not_allowed' });
-    });
+    // Игровые события уходят ведущему стола как есть: имя события и аргументы; проверяет их он.
+    const forward = (name: string, tooFast?: () => boolean) =>
+      socket.on(name as 'game:bet', (...args: unknown[]) => {
+        const ack = args.at(-1);
+        if (typeof ack !== 'function') return void (name === 'seat:leave' && rooms.action(user.id, name, []));
+        ack(tooFast?.() ? { ok: false, error: 'too_fast' } : rooms.action(user.id, name, args.slice(0, -1)));
+      });
 
     // Предел частоты на подключение: не больше limit принятых действий за окно времени.
     const limiter = (limit: number) => {
@@ -124,21 +112,9 @@ export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink
     const tooFast = limiter(CHAT_RATE_LIMIT);
     // Каждое принятое действие со ставками рассылает снимок всему столу.
     const bettingTooFast = limiter(ROULETTE_RATE_LIMIT);
-    const tooFastAck = { ok: false, error: 'too_fast' } as const;
 
-    socket.on('roulette:bet', (field, amount, ack) => {
-      if (typeof ack !== 'function') return;
-      if (typeof amount !== 'number') return ack({ ok: false, error: 'bad_bet' });
-      ack(bettingTooFast() ? tooFastAck : rooms.rouletteBet(user.id, field, amount));
-    });
-
-    socket.on('roulette:clear', (ack) => {
-      if (typeof ack === 'function') ack(bettingTooFast() ? tooFastAck : rooms.rouletteClear(user.id));
-    });
-
-    socket.on('roulette:ready', (ack) => {
-      if (typeof ack === 'function') ack(bettingTooFast() ? tooFastAck : rooms.rouletteReady(user.id));
-    });
+    for (const name of ['seat:take', 'seat:leave', 'game:bet', 'game:action']) forward(name);
+    for (const name of ['roulette:bet', 'roulette:clear', 'roulette:ready']) forward(name, bettingTooFast);
 
     // Чат и реакции нигде не сохраняются: проверили и сразу разослали тем, у кого открыт стол.
     socket.on('chat:send', (text, ack) => {

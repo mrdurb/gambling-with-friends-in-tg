@@ -19,7 +19,7 @@ export const SEATS = 6;
 // Сколько место ждёт игрока без связи, пока за столом не идёт раздача.
 export const DISCONNECT_GRACE_MS = 60_000;
 
-export const GAME_IDS = ['blackjack', 'roulette'] as const;
+export const GAME_IDS = ['blackjack', 'roulette', 'poker'] as const;
 export type GameId = (typeof GAME_IDS)[number];
 export const isGameId = (value: unknown): value is GameId => (GAME_IDS as readonly unknown[]).includes(value);
 
@@ -30,11 +30,30 @@ export interface PlayerInfo {
   photoUrl: string | null;
 }
 
+export type PokerMode = 'nlh' | 'pineapple' | 'short';
+export const POKER_MODES: readonly PokerMode[] = ['nlh', 'pineapple', 'short'];
+export const POKER_MODE_TITLES: Record<PokerMode, string> = { nlh: 'Холдем', pineapple: 'Холдем 3-1', short: 'Холдем 6+' };
+// Сколько мест за столом в каждом режиме.
+export const POKER_SEATS: Record<PokerMode, number> = { nlh: 9, pineapple: 9, short: 7 };
+// Уровни блайндов: малый и большой.
+export const POKER_BLINDS: readonly (readonly [number, number])[] = [
+  [5, 10],
+  [25, 50],
+  [100, 200],
+];
+
+export interface PokerOptions {
+  mode: PokerMode;
+  blinds: [number, number];
+}
+
 export interface TableInfo {
   code: string;
   name: string;
   game: GameId;
   inviteLink: string | null;
+  // Настройки стола покера; у остальных игр их нет.
+  poker: PokerOptions | null;
 }
 
 export interface SeatView {

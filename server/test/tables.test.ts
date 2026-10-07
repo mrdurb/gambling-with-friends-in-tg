@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { openDb } from '../src/db.ts';
@@ -67,7 +71,7 @@ describe('tables API', () => {
     expect((await create({ game: 'roulette' })).json()).toMatchObject({ name: 'Рулетка игрока Игрок 1', game: 'roulette' });
     expect((await create({ game: 'blackjack' })).json()).toMatchObject({ name: 'Стол игрока Игрок 1', game: 'blackjack' });
     expect((await create({})).json()).toMatchObject({ game: 'blackjack' });
-    expect((await create({ game: 'poker' })).statusCode).toBe(400);
+    expect((await create({ game: 'chess' })).statusCode).toBe(400);
     expect((await create({ game: 42 })).statusCode).toBe(400);
   });
 
@@ -81,12 +85,79 @@ describe('tables API', () => {
     expect((await call('GET', '/api/tables?game=roulette')).json()).toEqual([roulette]);
     expect((await call('GET', '/api/tables?game=blackjack')).json()).toEqual([blackjack]);
     expect((await call('GET', '/api/tables')).json()).toEqual([blackjack]);
-    expect((await call('GET', '/api/tables?game=poker')).statusCode).toBe(400);
+    expect((await call('GET', '/api/tables?game=chess')).statusCode).toBe(400);
+  });
+
+  it('creates poker tables of every mode and blind level, named after them', async () => {
+    const { app } = setup();
+    const create = (payload: object) =>
+      app.inject({ method: 'POST', url: '/api/tables', headers: { authorization: 'dev 1' }, payload });
+
+    expect((await create({ game: 'poker', mode: 'nlh', blinds: 10 })).json()).toMatchObject({
+      name: 'Холдем 5/10 игрока Игрок 1',
+      game: 'poker',
+      poker: { mode: 'nlh', blinds: [5, 10] },
+    });
+    expect((await create({ game: 'poker', mode: 'pineapple', blinds: 50 })).json()).toMatchObject({
+      name: 'Холдем 3-1 25/50 игрока Игрок 1',
+      poker: { mode: 'pineapple', blinds: [25, 50] },
+    });
+    const short = (await create({ game: 'poker', mode: 'short', blinds: 200 })).json();
+    expect(short).toMatchObject({ name: 'Холдем 6+ 100/200 игрока Игрок 1', poker: { mode: 'short', blinds: [100, 200] } });
+
+    // Настройки переживают чтение из базы.
+    const found = await app.inject({ url: `/api/tables/${short.code}`, headers: { authorization: 'dev 1' } });
+    expect(found.json()).toEqual(short);
+    const listed = await app.inject({ url: '/api/tables?game=poker', headers: { authorization: 'dev 1' } });
+    expect(listed.json()).toHaveLength(3);
+    expect(listed.json()[0]).toEqual(short);
+  });
+
+  it('refuses poker tables with an unknown mode or blind level', async () => {
+    const { app } = setup();
+    const create = (payload: object) =>
+      app.inject({ method: 'POST', url: '/api/tables', headers: { authorization: 'dev 1' }, payload });
+    expect((await create({ game: 'poker' })).statusCode).toBe(400);
+    expect((await create({ game: 'poker', mode: 'omaha', blinds: 10 })).statusCode).toBe(400);
+    expect((await create({ game: 'poker', mode: 'nlh', blinds: 7 })).statusCode).toBe(400);
+    expect((await create({ game: 'poker', mode: 'nlh', blinds: '10' })).statusCode).toBe(400);
+    expect((await create({ game: 'poker', mode: 'nlh' })).statusCode).toBe(400);
+  });
+
+  it('gives blackjack and roulette tables no poker options', async () => {
+    const { app, call } = setup();
+    expect((await call('POST', '/api/tables')).json().poker).toBeNull();
+    const roulette = await app.inject({ method: 'POST', url: '/api/tables', headers: { authorization: 'dev 1' }, payload: { game: 'roulette' } });
+    expect(roulette.json().poker).toBeNull();
   });
 
   it('requires authorization', async () => {
     const { app } = setup();
     expect((await app.inject({ method: 'POST', url: '/api/tables' })).statusCode).toBe(401);
     expect((await app.inject({ url: '/api/tables' })).statusCode).toBe(401);
+  });
+});
+
+describe('database upgrade', () => {
+  it('opens a database created before tables had options', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'casino-'));
+    const path = join(dir, 'old.db');
+    const old = new DatabaseSync(path);
+    old.exec(`
+      CREATE TABLE users (id INTEGER PRIMARY KEY, first_name TEXT NOT NULL, last_name TEXT, username TEXT, photo_url TEXT,
+        balance INTEGER NOT NULL, created_at INTEGER NOT NULL);
+      CREATE TABLE tables (code TEXT PRIMARY KEY, game TEXT NOT NULL, name TEXT NOT NULL,
+        created_by INTEGER NOT NULL REFERENCES users(id), created_at INTEGER NOT NULL);
+      INSERT INTO users VALUES (1, 'Игрок 1', NULL, NULL, NULL, 1000, 1);
+      INSERT INTO tables VALUES ('OLDTABLE', 'blackjack', 'Старый стол', 1, 1);
+    `);
+    old.close();
+
+    const app = buildApp(openDb(path), { botToken: '', devAuth: true });
+    const found = await app.inject({ url: '/api/tables/OLDTABLE', headers: { authorization: 'dev 1' } });
+    expect(found.json()).toMatchObject({ name: 'Старый стол', game: 'blackjack', poker: null });
+    // Повторное открытие колонку второй раз не добавляет.
+    expect(() => openDb(path)).not.toThrow();
+    rmSync(dir, { recursive: true });
   });
 });

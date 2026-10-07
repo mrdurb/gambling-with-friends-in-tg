@@ -1,21 +1,22 @@
 import { DISCONNECT_GRACE_MS, type PlayerInfo, type TableInfo, type BlackjackSnapshot } from '@casino/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Rooms } from '../src/rooms.ts';
+import { drive } from './helpers.ts';
 
-const tableA: TableInfo = { code: 'AAAAAAAA', name: 'A', game: 'blackjack', inviteLink: null };
-const tableB: TableInfo = { code: 'BBBBBBBB', name: 'B', game: 'blackjack', inviteLink: null };
+const tableA: TableInfo = { code: 'AAAAAAAA', name: 'A', game: 'blackjack', inviteLink: null, poker: null };
+const tableB: TableInfo = { code: 'BBBBBBBB', name: 'B', game: 'blackjack', inviteLink: null, poker: null };
 const player = (id: number): PlayerInfo => ({ id, firstName: `Игрок ${id}`, lastName: null, photoUrl: null });
 
 function setup() {
   const sent: BlackjackSnapshot[] = [];
-  const rooms = new Rooms({
+  const rooms = drive(new Rooms({
     broadcast: (snapshot) => sent.push(snapshot as BlackjackSnapshot),
     balanceOf: () => 1000,
     settle: () => new Map(),
     notifyBalance: () => {},
     spinNumber: () => 0,
     newShoe: () => [],
-  });
+  }));
   const last = (code: string) => sent.filter((s) => s.table.code === code).at(-1)!;
   return { rooms, sent, last };
 }

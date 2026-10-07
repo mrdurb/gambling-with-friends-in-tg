@@ -3,7 +3,7 @@ import { Button, Cell, List, Placeholder, Section } from '@telegram-apps/telegra
 import { useEffect, useState } from 'react';
 import { createTable, fetchMyTables } from '../api.ts';
 
-const TITLES: Record<GameId, string> = { blackjack: 'Блэкджек', roulette: 'Рулетка' };
+const TITLES: Record<GameId, string> = { blackjack: 'Блэкджек', roulette: 'Рулетка', poker: 'Покер' };
 
 interface Props {
   game: GameId;

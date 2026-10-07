@@ -10,10 +10,11 @@ import {
 } from '@casino/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Rooms } from '../src/rooms.ts';
+import { drive } from './helpers.ts';
 import type { PlayerResult } from '../src/rounds.ts';
 
-const table: TableInfo = { code: 'RRRRRRRR', name: 'R', game: 'roulette', inviteLink: null };
-const bjTable: TableInfo = { code: 'BBBBBBBB', name: 'B', game: 'blackjack', inviteLink: null };
+const table: TableInfo = { code: 'RRRRRRRR', name: 'R', game: 'roulette', inviteLink: null, poker: null };
+const bjTable: TableInfo = { code: 'BBBBBBBB', name: 'B', game: 'blackjack', inviteLink: null, poker: null };
 const player = (id: number): PlayerInfo => ({ id, firstName: `Игрок ${id}`, lastName: null, photoUrl: null });
 
 // Игроки 1 и 2 открыли стол рулетки. Колесо выдаёт числа из numbers по очереди (по умолчанию всегда 1 — красное).
@@ -26,7 +27,7 @@ function setup({ numbers = [1], bank = {} as Record<number, number>, players = [
   let failSettle = false;
   let spins = 0;
 
-  const rooms = new Rooms({
+  const rooms = drive(new Rooms({
     broadcast: (snapshot) => sent.push(snapshot),
     balanceOf,
     settle: (code, results, game) => {
@@ -38,7 +39,7 @@ function setup({ numbers = [1], bank = {} as Record<number, number>, players = [
     notifyBalance: (id, balance) => notified.push([id, balance]),
     newShoe: () => Array.from({ length: 312 }, (): Card => ({ rank: '2', suit: 'C' })),
     spinNumber: () => numbers[Math.min(spins++, numbers.length - 1)]!,
-  });
+  }));
 
   for (const id of players) rooms.enter(table, player(id));
   const last = (): RouletteView => {

@@ -12,10 +12,11 @@ import {
 } from '@casino/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Rooms } from '../src/rooms.ts';
+import { drive } from './helpers.ts';
 import type { PlayerResult } from '../src/rounds.ts';
 
-const table: TableInfo = { code: 'AAAAAAAA', name: 'A', game: 'blackjack', inviteLink: null };
-const other: TableInfo = { code: 'BBBBBBBB', name: 'B', game: 'blackjack', inviteLink: null };
+const table: TableInfo = { code: 'AAAAAAAA', name: 'A', game: 'blackjack', inviteLink: null, poker: null };
+const other: TableInfo = { code: 'BBBBBBBB', name: 'B', game: 'blackjack', inviteLink: null, poker: null };
 const player = (id: number): PlayerInfo => ({ id, firstName: `Игрок ${id}`, lastName: null, photoUrl: null });
 const card = (text: string): Card => ({ rank: text.slice(0, -1) as Rank, suit: text.slice(-1) as Suit });
 
@@ -28,7 +29,7 @@ function setup({ script = '10S 10D 10H 9S 6D 7H', bank = {} as Record<number, nu
   const balanceOf = (id: number) => balances.get(id) ?? 1000;
   let failSettle = false;
 
-  const rooms = new Rooms({
+  const rooms = drive(new Rooms({
     broadcast: (snapshot) => sent.push(snapshot as BlackjackSnapshot),
     balanceOf,
     settle: (code, results) => {
@@ -40,7 +41,7 @@ function setup({ script = '10S 10D 10H 9S 6D 7H', bank = {} as Record<number, nu
     notifyBalance: (id, balance) => notified.push([id, balance]),
     spinNumber: () => 0,
     newShoe: () => [...script.split(/\s+/).filter(Boolean).map(card), ...Array.from({ length: 312 }, () => card('2C'))],
-  });
+  }));
 
   players.forEach((id, seat) => {
     rooms.enter(table, player(id));
@@ -91,7 +92,8 @@ describe('betting phase', () => {
     const { rooms } = setup();
     rooms.enter(table, player(9));
     expect(rooms.bet(9, 100)).toEqual({ ok: false, error: 'not_seated' });
-    expect(rooms.bet(77, 100)).toEqual({ ok: false, error: 'not_seated' });
+    // У игрока 77 стол не открыт вовсе.
+    expect(rooms.bet(77, 100)).toEqual({ ok: false, error: 'not_at_table' });
   });
 
   it('cancels the bet of a player who stands up, and starts if the rest have all bet', () => {
