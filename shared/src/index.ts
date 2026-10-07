@@ -143,6 +143,104 @@ export interface BjDetails {
   doublesWon: number;
 }
 
+// ── Рулетка ──────────────────────────────────────────────────────────────
+
+// Сколько длится приём ставок после первой ставки, вращение колеса.
+export const ROULETTE_BET_MS = 25_000;
+export const SPIN_MS = 5_000;
+// Сколько последних выпавших чисел помнит стол.
+export const ROULETTE_HISTORY = 5;
+// Номиналы фишек рулетки: ставка на поле — не меньше MIN_BET.
+export const ROULETTE_CHIPS = CHIP_VALUES.filter((value) => value >= MIN_BET);
+
+// Числа европейского колеса по часовой стрелке, начиная с зеро.
+export const WHEEL_ORDER: readonly number[] = [
+  0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28,
+  12, 35, 3, 26,
+];
+export const RED_NUMBERS: ReadonlySet<number> = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
+
+const ROULETTE_GROUPS = [
+  'red',
+  'black',
+  'even',
+  'odd',
+  'low',
+  'high',
+  'dozen1',
+  'dozen2',
+  'dozen3',
+  'col1',
+  'col2',
+  'col3',
+] as const;
+type RouletteGroup = (typeof ROULETTE_GROUPS)[number];
+// Поле для ставки: число `n0`…`n36` или группа чисел.
+export type RouletteField = `n${number}` | RouletteGroup;
+export const ROULETTE_FIELDS: readonly RouletteField[] = [
+  ...Array.from({ length: 37 }, (_, number): RouletteField => `n${number}`),
+  ...ROULETTE_GROUPS,
+];
+export const isRouletteField = (value: unknown): value is RouletteField =>
+  (ROULETTE_FIELDS as readonly unknown[]).includes(value);
+
+const GROUP_WINS: Record<RouletteGroup, (number: number) => boolean> = {
+  red: (n) => RED_NUMBERS.has(n),
+  black: (n) => !RED_NUMBERS.has(n),
+  even: (n) => n % 2 === 0,
+  odd: (n) => n % 2 === 1,
+  low: (n) => n <= 18,
+  high: (n) => n >= 19,
+  dozen1: (n) => n <= 12,
+  dozen2: (n) => n >= 13 && n <= 24,
+  dozen3: (n) => n >= 25,
+  col1: (n) => n % 3 === 1,
+  col2: (n) => n % 3 === 2,
+  col3: (n) => n % 3 === 0,
+};
+
+// Выигрывает ли поле при выпавшем числе. При зеро выигрывает только ставка на само зеро.
+export function rouletteWins(field: RouletteField, number: number): boolean {
+  // Ни одна группа не начинается с «n».
+  if (field.startsWith('n')) return field === `n${number}`;
+  return number !== 0 && GROUP_WINS[field as RouletteGroup](number);
+}
+
+// Выплата поля: сколько ставок игрок получает сверх своей.
+export function roulettePayout(field: RouletteField): 35 | 2 | 1 {
+  if (field.startsWith('n')) return 35;
+  return field.startsWith('dozen') || field.startsWith('col') ? 2 : 1;
+}
+
+export type RoulettePhase = 'waiting' | 'betting' | 'spinning' | 'result';
+export type RouletteBets = Partial<Record<RouletteField, number>>;
+
+export interface RoulettePlayerView {
+  player: PlayerInfo;
+  connected: boolean;
+  bets: RouletteBets;
+  ready: boolean;
+  // Чистый результат игрока за раунд; null, пока раунд не рассчитан.
+  net: number | null;
+}
+
+export interface RouletteView {
+  phase: RoulettePhase;
+  players: RoulettePlayerView[];
+  // Сколько миллисекунд осталось до конца текущего таймера (ставки, вращение, показ результата).
+  timeLeftMs: number | null;
+  // Выпавшее число: известно с начала вращения.
+  number: number | null;
+  // Последние выпавшие числа, новые первыми.
+  history: number[];
+}
+
+// Подробности раунда рулетки для статистики.
+export interface RouletteDetails {
+  number: number;
+  bets: RouletteBets;
+}
+
 // ── Чат и реакции ────────────────────────────────────────────────────────
 
 export const CHAT_MAX_LENGTH = 200;
