@@ -80,7 +80,7 @@ export const CHIP_VALUES = [1, 5, 25, 100, 500, 1000] as const;
 
 export const BET_MS = 20_000;
 export const TURN_MS = 30_000;
-export const RESULT_MS = 5_000;
+export const RESULT_MS = 3_000;
 // Столько пропусков подряд (не поставил или не походил вовремя) — и игрок встаёт из-за стола.
 export const MAX_MISSES = 2;
 

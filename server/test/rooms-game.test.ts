@@ -120,7 +120,7 @@ describe('playing a round', () => {
     return ctx;
   };
 
-  it('settles through the wallet once, tells players their balance, and shows the result for 5 seconds', () => {
+  it('settles through the wallet once, tells players their balance, and shows the result for 3 seconds', () => {
     const { rooms, last, settled, notified } = start();
     expect(rooms.act(2, 'stand')).toEqual({ ok: false, error: 'not_your_turn' });
     expect(rooms.act(1, 'stand')).toEqual({ ok: true });
