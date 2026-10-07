@@ -123,7 +123,8 @@ export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink
 
     for (const name of ['seat:take', 'seat:leave', 'game:bet', 'game:action']) forward(name);
     for (const name of ['roulette:bet', 'roulette:clear', 'roulette:ready']) forward(name, bettingTooFast);
-    for (const name of ['poker:sit', 'poker:leave', 'poker:rebuy', 'poker:action', 'poker:discard', 'poker:show']) forward(name);
+    const pokerTooFast = limiter(ROULETTE_RATE_LIMIT);
+    for (const name of ['poker:sit', 'poker:leave', 'poker:rebuy', 'poker:action', 'poker:discard', 'poker:show']) forward(name, pokerTooFast);
 
     // Чат и реакции нигде не сохраняются: проверили и сразу разослали тем, у кого открыт стол.
     socket.on('chat:send', (text, ack) => {

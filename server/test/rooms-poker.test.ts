@@ -1,6 +1,7 @@
 import {
   DISCONNECT_GRACE_MS,
   POKER_DISCARD_MS,
+  POKER_REBUY_MS,
   POKER_RESULT_MS,
   POKER_RUNOUT_MS,
   POKER_TURN_MS,
@@ -124,6 +125,7 @@ describe('sitting down', () => {
       connected: true,
       leaving: false,
       stack: 400,
+      staked: 400,
       bet: 0,
       state: 'waiting',
       cards: null,
@@ -447,12 +449,12 @@ describe('running out of chips and rebuying', () => {
     expect(rooms.pokerRebuy(1, 100)).toEqual({ ok: false, error: 'in_hand' });
     rooms.pokerAct(1, 'fold');
     expect(last().phase).toBe('flop');
-    // Стек на начало раздачи — 395: докупить можно не больше 605.
-    expect(rooms.pokerRebuy(1, 606)).toEqual({ ok: false, error: 'bad_amount' });
+    // Перед игроком осталось 385 (большой блайнд 10 ушёл в банк): докупить можно до 1000, то есть не больше 615.
+    expect(rooms.pokerRebuy(1, 616)).toEqual({ ok: false, error: 'bad_amount' });
     for (const amount of [0, -5, 10.5, Number.NaN]) expect(rooms.pokerRebuy(1, amount)).toEqual({ ok: false, error: 'bad_amount' });
-    expect(rooms.pokerRebuy(1, 605)).toEqual({ ok: true });
-    // Большой блайнд 10 остался в банке.
-    expect(last().seats[0]).toMatchObject({ stack: 990, state: 'folded' });
+    expect(rooms.pokerRebuy(1, 14)).toEqual({ ok: false, error: 'bad_amount' }); // после докупки должно быть не меньше 400
+    expect(rooms.pokerRebuy(1, 615)).toEqual({ ok: true });
+    expect(last().seats[0]).toMatchObject({ stack: 1000, staked: 1010, state: 'folded' });
     expect(rooms.pokerRebuy(9, 100)).toEqual({ ok: false, error: 'not_at_table' });
     rooms.enter(table, player(8));
     expect(rooms.pokerRebuy(8, 100)).toEqual({ ok: false, error: 'not_seated' });
@@ -461,7 +463,63 @@ describe('running out of chips and rebuying', () => {
     rooms.pokerAct(3, 'raise', 10);
     rooms.pokerAct(2, 'fold');
     expect(last()).toMatchObject({ phase: 'result' });
-    expect(last().seats[0]).toMatchObject({ stack: 990 });
+    expect(last().seats[0]).toMatchObject({ stack: 1000, staked: 1000 });
+  });
+
+  it('gives a player without chips a minute to rebuy when no hand can start, then frees the seat', () => {
+    const ctx = setup({ seated: 2 });
+    bust(ctx);
+    vi.advanceTimersByTime(POKER_RESULT_MS);
+    expect(ctx.last().seats[1]).toMatchObject({ stack: 0 });
+    vi.advanceTimersByTime(POKER_REBUY_MS - 1);
+    expect(ctx.last().seats[1]).not.toBeNull();
+    vi.advanceTimersByTime(1);
+    expect(ctx.last().seats[1]).toBeNull();
+  });
+
+  it('keeps the seat when the player rebuys within that minute', () => {
+    const ctx = setup({ seated: 2 });
+    bust(ctx);
+    vi.advanceTimersByTime(POKER_RESULT_MS + 1000);
+    ctx.rooms.pokerRebuy(2, 400);
+    vi.advanceTimersByTime(POKER_REBUY_MS);
+    expect(ctx.last().seats[1]).not.toBeNull();
+  });
+});
+
+describe('quiet table', () => {
+  it('does not broadcast anything for a refused move', () => {
+    const { rooms, sent } = setup({ seated: 2 });
+    const before = sent.length;
+    expect(rooms.pokerAct(2, 'check')).toEqual({ ok: false, error: 'not_your_turn' });
+    expect(rooms.pokerAct(1, 'raise', 3)).toEqual({ ok: false, error: 'bad_amount' });
+    expect(rooms.pokerShow(1)).toEqual({ ok: false, error: 'not_allowed' });
+    expect(sent.length).toBe(before);
+  });
+
+  it('sends cards only to players who have this table open', () => {
+    const { rooms, table, dealt } = setup({ seated: 2 });
+    rooms.enter(bjTable, player(2)); // игрок 2 ушёл смотреть другой стол
+    const before = dealt.length;
+    rooms.enter(table, player(9));
+    rooms.pokerAct(1, 'fold');
+    vi.advanceTimersByTime(POKER_RESULT_MS);
+    // Конец раздачи и новая раздача: игроку 2 ничего не приходит, пока он не вернётся.
+    expect(dealt.slice(before).filter(([id]) => id === 2)).toEqual([]);
+    rooms.enter(table, player(2));
+    expect(dealt.at(-1)![0]).toBe(2);
+    expect(dealt.at(-1)![1]).not.toBe('');
+  });
+
+  it('keeps an all-in player in the hand when they stand up', () => {
+    const { rooms, last, settled } = setup({ seated: 2 });
+    rooms.pokerAct(1, 'raise', 400);
+    rooms.pokerAct(2, 'call');
+    rooms.pokerLeave(1); // у игрока 1 фулл-хаус, он уже в олл-ине
+    vi.advanceTimersByTime(POKER_RUNOUT_MS * 4);
+    expect(settled[0]!.results.map((result) => result.net)).toEqual([400, -400]);
+    vi.advanceTimersByTime(POKER_RESULT_MS);
+    expect(last().seats[0]).toBeNull();
   });
 });
 

@@ -447,6 +447,15 @@ describe('realtime tables', () => {
     ]);
   });
 
+  it('limits how fast one player can send poker actions', async () => {
+    const { client, pokerTable } = await setup('', [1], POKER_DECK);
+    const socket = client('dev 1');
+    await join(socket, await pokerTable());
+    for (let i = 0; i < ROULETTE_RATE_LIMIT; i++) expect(await pAct(socket, 'fold')).toEqual({ ok: false, error: 'not_seated' });
+    expect(await pAct(socket, 'fold')).toEqual({ ok: false, error: 'too_fast' });
+    expect(await pShow(socket)).toEqual({ ok: false, error: 'too_fast' });
+  });
+
   it('rejects malformed poker messages and messages meant for another game', async () => {
     const { client, code, pokerTable } = await setup('', [1], POKER_DECK);
     const socket = client('dev 1');

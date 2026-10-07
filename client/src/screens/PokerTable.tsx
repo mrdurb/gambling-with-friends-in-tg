@@ -47,7 +47,7 @@ export function PokerTable({ snapshot, me, connection, onOpenCashier, chat }: Pr
   const { game } = snapshot;
   const [, big] = snapshot.table.poker!.blinds;
   const [minBuyIn, maxBuyIn] = [big * POKER_MIN_BUYIN_BB, big * POKER_MAX_BUYIN_BB];
-  const [dialog, setDialog] = useState<Dialog>(null);
+  const [openedDialog, setDialog] = useState<Dialog>(null);
   const [amount, setAmount] = useState(0);
   const [raiseTo, setRaiseTo] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -57,10 +57,12 @@ export function PokerTable({ snapshot, me, connection, onOpenCashier, chat }: Pr
   const mySeat = game.seats.findIndex((seat) => seat?.player.id === me.id);
   const mine = mySeat === -1 ? null : game.seats[mySeat]!;
   const myTurn = game.turn !== null && game.turn.seat === mySeat ? game.turn : null;
+  // Окно теряет смысл, если место под ним исчезло: докупать некому, а садиться после посадки незачем.
+  const dialog = openedDialog && (openedDialog.kind === 'rebuy') === Boolean(mine) ? openedDialog : null;
   const bets = game.seats.reduce((sum, seat) => sum + (seat?.bet ?? 0), 0);
   const pot = game.pots.reduce((sum, value) => sum + value, 0) + bets;
-  // Фишки вне стола: стек зарезервирован и в них не входит.
-  const free = me.balance - (mine?.stack ?? 0) - (mine?.bet ?? 0);
+  // Фишки вне стола: всё, что стол зарезервировал под стек, в них не входит.
+  const free = me.balance - (mine?.staked ?? 0);
 
   // Отказ относится к одному действию: со сменой хода или фазы он уже неактуален.
   useEffect(() => setError(null), [game.phase, game.turn?.seat]);

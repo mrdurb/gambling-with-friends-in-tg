@@ -4,6 +4,7 @@ import {
   POKER_DISCARD_MS,
   POKER_MAX_BUYIN_BB,
   POKER_MIN_BUYIN_BB,
+  POKER_REBUY_MS,
   POKER_RESULT_MS,
   POKER_RUNOUT_MS,
   POKER_SEATS,
@@ -37,6 +38,8 @@ interface Seat {
   timedOut: boolean;
   // Раздачи подряд, пропущенные без фишек.
   brokeHands: number;
+  // Таймер, по которому место игрока без фишек освобождается, если он не докупил.
+  rebuyBy?: Timer;
 }
 
 const ACTIONS: PokerActionKind[] = ['fold', 'check', 'call', 'raise'];
@@ -73,8 +76,7 @@ export class PokerTable implements TableHost, SeatedTable {
     seat.connected = true;
     seat.player = player;
     // Вернувшемуся посреди раздачи карты приходят снова.
-    const cards = this.hand?.cardsOf(index) ?? [];
-    if (cards.length > 0 && !this.settled) this.ctx.sendCards(player.id, cards);
+    if (this.hand && this.startStacks.has(index) && !this.settled) this.sendCards(index, true);
   }
 
   // Место за ушедшим сохраняется на время; его ходы идут по таймеру.
@@ -146,14 +148,12 @@ export class PokerTable implements TableHost, SeatedTable {
     const view = this.hand?.view();
     const seats = this.seats.map((seat, index): PokerSeatView | null => {
       if (!seat) return null;
-      const base = { player: seat.player, connected: seat.connected, leaving: seat.leaving };
+      const base = { player: seat.player, connected: seat.connected, leaving: seat.leaving, staked: this.stakeOf(seat.player.id) };
       const inHand = view?.seats.get(index);
       if (!inHand) {
         return { ...base, stack: seat.stack, bet: 0, state: 'waiting', cards: null, hasCards: false, discarded: false, won: null, hand: null };
       }
-      // До расчёта стек — живой из раздачи плюс докупленное после её начала; после — уже обновлённый.
-      const stack = this.settled ? seat.stack : inHand.stack + seat.stack - this.startStacks.get(index)!;
-      return { ...base, ...inHand, stack };
+      return { ...base, ...inHand, stack: this.liveStack(index) };
     });
     return {
       kind: 'poker',
@@ -169,6 +169,15 @@ export class PokerTable implements TableHost, SeatedTable {
         timeLeftMs: this.timer.leftMs(),
       },
     };
+  }
+
+  // Фишки перед игроком прямо сейчас. Во время раздачи — оставшееся в ней плюс докупленное после её
+  // начала; seat.stack до расчёта хранит значение на начало раздачи.
+  private liveStack(index: number): number {
+    const seat = this.seats[index]!;
+    const inHand = this.hand?.view().seats.get(index);
+    if (!inHand || this.settled) return seat.stack;
+    return inHand.stack + seat.stack - this.startStacks.get(index)!;
   }
 
   private indexOf(userId: number): number {
@@ -213,57 +222,61 @@ export class PokerTable implements TableHost, SeatedTable {
     if (live && !this.settled && live.state !== 'folded') return fail('in_hand');
     const [min, max] = this.buyInLimits();
     if (typeof amount !== 'number' || !Number.isInteger(amount) || amount <= 0) return fail('bad_amount');
-    if (seat.stack + amount < min || seat.stack + amount > max) return fail('bad_amount');
+    const after = this.liveStack(index) + amount;
+    if (after < min || after > max) return fail('bad_amount');
     if (amount > this.ctx.freeBalance(userId)) return fail('insufficient');
 
     seat.stack += amount;
     seat.brokeHands = 0;
+    clearTimeout(seat.rebuyBy);
+    seat.rebuyBy = undefined;
     if (!this.startIfReady()) this.ctx.publish();
     return { ok: true };
   }
 
-  // Действие сидящего игрока в раздаче.
+  // Действие сидящего игрока в раздаче. Отказ ничего не меняет и никому не рассылается.
   private play(userId: number, move: (hand: PokerHand, index: number) => Ack): Ack {
     const index = this.indexOf(userId);
     const seat = this.seats[index];
     if (!seat || seat.leaving) return fail('not_seated');
-    if (!this.hand) return fail('not_allowed');
-    let result: Ack = fail('not_allowed');
-    this.advance((hand) => {
-      result = move(hand, index);
-      if (result.ok) seat.misses = 0;
-    });
+    const hand = this.hand;
+    if (!hand) return fail('not_allowed');
+    const result = move(hand, index);
+    if (!result.ok) return result;
+
+    seat.misses = 0;
     // После сброса у игрока остаётся две карты.
-    if (result.ok && this.hand && !this.settled) this.sendCardsIfChanged(index);
+    if (!this.settled) this.sendCards(index);
+    // Показ карт после расчёта и чей-то сброс, пока сбросили не все, таймер не трогают.
+    if (this.settled || hand.phase === 'discard') this.ctx.publish();
+    else this.schedule();
     return result;
   }
 
   // Сколько карт у игрока было при последней отправке: шлём заново только после сброса.
   private readonly sentCards = new Map<number, number>();
-  private sendCardsIfChanged(index: number): void {
-    const cards = this.hand!.cardsOf(index);
-    if (this.sentCards.get(index) === cards.length) return;
+
+  // Личные карты уходят только тому, у кого этот стол открыт: у игрока одно подключение, и он может
+  // в это время сидеть за другим столом. Вернувшись, он получит их заново.
+  private sendCards(index: number, force = false): void {
+    const seat = this.seats[index];
+    if (!seat || !this.ctx.present.has(seat.player.id)) return;
+    const cards = this.settled || !this.hand ? [] : this.hand.cardsOf(index);
+    if (!force && this.sentCards.get(index) === cards.length) return;
     this.sentCards.set(index, cards.length);
-    this.ctx.sendCards(this.seats[index]!.player.id, cards);
+    this.ctx.sendCards(seat.player.id, cards);
   }
 
-  // Меняет раздачу и решает, что дальше. Если фаза и очередь хода остались прежними (кто-то сбросил
-  // карту или ушёл не в свой ход), таймер идущего не трогается.
+  // Уход игрока из раздачи. Если фаза и очередь хода остались прежними (ушёл не в свой ход),
+  // таймер идущего не трогается.
   private advance(change: (hand: PokerHand) => void): void {
     const hand = this.hand;
     if (!hand) return;
-    // После расчёта менять можно только показ карт: таймер результата идёт своим чередом.
-    if (this.settled) {
-      change(hand);
-      return this.ctx.publish();
-    }
-    const mark = () => `${hand.phase}:${hand.view().turn?.seat}:${hand.view().turn?.toCall}:${hand.runoutPending()}`;
+    const mark = () => `${hand.phase}:${JSON.stringify(hand.view().turn)}:${hand.runoutPending()}`;
     const before = mark();
-    const acted = hand.view().turn?.seat;
     change(hand);
-    const moved = hand.view().turn?.seat !== acted || mark() !== before;
-    if (moved) this.schedule();
-    else this.ctx.publish();
+    if (this.settled || mark() === before) this.ctx.publish();
+    else this.schedule();
   }
 
   // Заводит таймер под текущее состояние раздачи и рассылает снимок.
@@ -273,7 +286,7 @@ export class PokerTable implements TableHost, SeatedTable {
     if (hand.phase === 'discard') {
       this.timer.set(POKER_DISCARD_MS, () => {
         hand.autoDiscard();
-        for (const index of this.startStacks.keys()) if (this.seats[index]) this.sendCardsIfChanged(index);
+        for (const index of this.startStacks.keys()) this.sendCards(index);
         this.schedule();
       });
     } else if (hand.runoutPending()) {
@@ -311,7 +324,7 @@ export class PokerTable implements TableHost, SeatedTable {
     this.settled = false;
     this.sentCards.clear();
     this.hand = new PokerHand(this.options, this.startStacks, this.button, this.newDeck(this.options.mode === 'short'));
-    for (const index of players) this.sendCardsIfChanged(index);
+    for (const index of players) this.sendCards(index);
     this.schedule();
     return true;
   }
@@ -338,17 +351,23 @@ export class PokerTable implements TableHost, SeatedTable {
 
   private endHand(): void {
     this.timer.clear();
-    for (const index of this.startStacks.keys()) {
-      const seat = this.seats[index];
-      if (seat) this.ctx.sendCards(seat.player.id, []);
-    }
+    const dealtIn = [...this.startStacks.keys()];
     this.hand = null;
     this.settled = false;
     this.startStacks = new Map();
+    // Карт больше нет.
+    for (const index of dealtIn) this.sendCards(index);
     this.seats.forEach((seat, index) => {
       if (!seat) return;
       const broke = seat.stack === 0 && seat.brokeHands >= MAX_MISSES;
-      if (seat.leaving || seat.misses >= MAX_MISSES || broke) this.removeSeat(index);
+      if (seat.leaving || seat.misses >= MAX_MISSES || broke) return this.removeSeat(index);
+      // Без фишек место держится минуту: иначе один на один оно было бы занято вечно.
+      if (seat.stack === 0 && !seat.rebuyBy) {
+        seat.rebuyBy = setTimeout(() => {
+          seat.rebuyBy = undefined;
+          if (seat.stack === 0) this.stand(seat.player.id);
+        }, POKER_REBUY_MS);
+      }
     });
     if (!this.startIfReady()) this.ctx.publish();
   }
@@ -357,6 +376,7 @@ export class PokerTable implements TableHost, SeatedTable {
     const seat = this.seats[index];
     if (!seat) return;
     clearTimeout(seat.release);
+    clearTimeout(seat.rebuyBy);
     if (this.seated.get(seat.player.id) === this) this.seated.delete(seat.player.id);
     this.seats[index] = null;
   }

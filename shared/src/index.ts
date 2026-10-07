@@ -294,6 +294,8 @@ export const POKER_TURN_MS = 30_000;
 export const POKER_DISCARD_MS = 15_000;
 export const POKER_RUNOUT_MS = 1_500;
 export const POKER_RESULT_MS = 5_000;
+// Сколько место ждёт докупки игрока без фишек, когда раздача начаться не может.
+export const POKER_REBUY_MS = 60_000;
 
 export type PokerPhase = 'waiting' | 'discard' | 'preflop' | 'flop' | 'turn' | 'river' | 'result';
 // waiting — сидит, но в текущей раздаче не участвует.
@@ -306,6 +308,8 @@ export interface PokerSeatView {
   // Игрок встал посреди раздачи: место освободится после её расчёта.
   leaving: boolean;
   stack: number;
+  // Сколько фишек игрока зарезервировано этим столом: на столько его свободный баланс меньше баланса.
+  staked: number;
   // Ставка в текущем круге торговли.
   bet: number;
   state: PokerSeatState;

@@ -132,19 +132,22 @@ export class PokerHand {
   autoDiscard(): void {
     if (this.phase !== 'discard') return;
     for (const state of this.seats.values()) {
-      if (state.folded || state.discarded) continue;
-      const lowest = state.cards.reduce((best, card, index) => (rankValue(card.rank) < rankValue(state.cards[best]!.rank) ? index : best), 0);
-      state.cards.splice(lowest, 1);
-      state.discarded = true;
+      if (!state.folded && !state.discarded) this.dropLowest(state);
     }
     this.startAfterDiscard();
+  }
+
+  private dropLowest(state: Seat): void {
+    const lowest = state.cards.reduce((best, card, index) => (rankValue(card.rank) < rankValue(state.cards[best]!.rank) ? index : best), 0);
+    state.cards.splice(lowest, 1);
+    state.discarded = true;
   }
 
   // amount — для рейза: итоговая ставка игрока в этом круге («повысить до»).
   act(seat: number, kind: PokerActionKind, amount?: number): Result {
     const state = this.seats.get(seat);
     if (!state || seat !== this.turnSeat) return fail('not_your_turn');
-    const owed = this.currentBet - state.bet;
+    const owed = this.owed(state);
 
     switch (kind) {
       case 'fold':
@@ -183,7 +186,7 @@ export class PokerHand {
   timeout(): number | null {
     const seat = this.turnSeat;
     if (seat === null) return null;
-    this.act(seat, this.currentBet > this.seats.get(seat)!.bet ? 'fold' : 'check');
+    this.act(seat, this.owed(this.seats.get(seat)!) > 0 ? 'fold' : 'check');
     return seat;
   }
 
@@ -191,6 +194,12 @@ export class PokerHand {
   forfeit(seat: number): void {
     const state = this.seats.get(seat);
     if (!state || state.folded || this.phase === 'result') return;
+    // Игрок в олл-ине остаётся в раздаче: решать ему больше нечего, а его доля банка — его.
+    if (state.stack === 0) {
+      if (this.phase === 'discard' && !state.discarded) this.dropLowest(state);
+      if (this.phase === 'discard') this.startAfterDiscard();
+      return;
+    }
     state.folded = true;
     if (this.live().length === 1) return this.finish();
     if (this.phase === 'discard') this.startAfterDiscard();
@@ -214,13 +223,6 @@ export class PokerHand {
     if (this.phase !== 'result' || !state || state.folded || state.shown) return fail('not_allowed');
     state.shown = true;
     return { ok: true };
-  }
-
-  // Все фишки места за столом: стек и вложенное в банк. После раздачи — итоговый стек.
-  stake(seat: number): number {
-    const state = this.seats.get(seat);
-    if (!state) return 0;
-    return this.phase === 'result' ? state.stack : state.stack + state.total;
   }
 
   // Итоги раздачи; null, пока она идёт.
@@ -267,9 +269,17 @@ export class PokerHand {
     state.total += paid;
   }
 
+  // Сколько месту нужно доставить до текущей ставки. Больше, чем соперники вообще способны поставить,
+  // доставлять незачем: эта часть всё равно вернулась бы (большой блайнд мог встать олл-ином на меньшее).
+  private owed(state: Seat): number {
+    const rivals = this.live().filter((other) => other !== state);
+    const reachable = Math.max(0, ...rivals.map((other) => other.bet + other.stack));
+    return Math.max(0, Math.min(this.currentBet, reachable) - state.bet);
+  }
+
   private toCall(seat: number): number {
     const state = this.seats.get(seat)!;
-    return Math.min(this.currentBet - state.bet, state.stack);
+    return Math.min(this.owed(state), state.stack);
   }
 
   // До какой суммы можно повысить; нули — повышать нельзя.
@@ -304,7 +314,7 @@ export class PokerHand {
       const seat = this.order[(start + step) % this.order.length]!;
       const state = this.seats.get(seat)!;
       if (state.folded || state.stack === 0) continue;
-      if (state.bet < this.currentBet) return seat;
+      if (this.owed(state) > 0) return seat;
       // Доставлять нечего: ход нужен, только если есть с кем торговаться дальше.
       const rivals = this.live().some((other) => other !== state && other.stack > 0);
       if (!state.acted && rivals) return seat;

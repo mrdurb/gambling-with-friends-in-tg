@@ -397,20 +397,43 @@ describe('timeouts and leaving', () => {
 });
 
 describe('what the table needs', () => {
-  it('tells each player their own cards and keeps the stake of a seat', () => {
+  it('tells each player their own cards and keeps them out of the public view', () => {
     const hand = deal({ stacks: { 0: 1000, 1: 1000 }, button: 0, holes: { 0: 'AS AD', 1: 'KD KC' } });
     expect(text(hand.cardsOf(0))).toBe('AS AD');
     expect(text(hand.cardsOf(1))).toBe('KD KC');
     expect(hand.cardsOf(5)).toEqual([]);
     expect(seatOf(hand, 0)).toMatchObject({ cards: null, hasCards: true });
-    // Стек плюс вложенное в банк.
-    expect(hand.stake(0)).toBe(1000);
-    hand.act(0, 'raise', 100);
-    expect(hand.stake(0)).toBe(1000);
-    hand.act(1, 'fold');
-    expect(hand.stake(0)).toBe(1010);
-    expect(hand.stake(1)).toBe(990);
-    expect(hand.stake(5)).toBe(0);
+  });
+});
+
+describe('all-in players', () => {
+  it('keeps an all-in player in the pot when they leave the table', () => {
+    // Место 2 в олл-ине с каре; места 0 и 1 продолжают торговлю.
+    const hand = deal({ stacks: { 0: 1000, 1: 1000, 2: 50 }, button: 0, holes: { 2: '5D 5C' } });
+    hand.act(0, 'raise', 50);
+    hand.act(1, 'call');
+    hand.act(2, 'call');
+    expect(seatOf(hand, 2).state).toBe('allin');
+    hand.forfeit(2);
+    expect(seatOf(hand, 2).state).toBe('allin');
+    checkDown(hand);
+    expect(seatOf(hand, 2)).toMatchObject({ won: 150, hand: 'Каре' });
+  });
+
+  it('does not ask for a call the short big blind cannot be paid', () => {
+    // Один на один: большой блайнд в олл-ине на 3, малый уже поставил 5 — уравнивать нечего.
+    const hand = deal({ stacks: { 0: 1000, 1: 3 }, button: 0 });
+    expect(hand.view().turn).toBeNull();
+    expect(hand.runoutPending()).toBe(true);
+    expect(seatOf(hand, 0).stack).toBe(997);
+    expect(hand.timeout()).toBeNull();
+  });
+
+  it('still asks the others for the full big blind when it was posted short', () => {
+    const hand = deal({ stacks: { 0: 1000, 1: 1000, 2: 3 }, button: 0 });
+    expect(hand.view().turn).toMatchObject({ seat: 0, toCall: 10 });
+    hand.act(0, 'call');
+    expect(hand.view().turn).toMatchObject({ seat: 1, toCall: 5 });
   });
 });
 
