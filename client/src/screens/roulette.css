@@ -1,0 +1,249 @@
+/* Экран рулетки. Общие части стола (шапка, панель, чат, фишки) — в table.css. */
+
+.r-players {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 10px calc(8px + var(--inset-right)) 4px calc(8px + var(--inset-left));
+}
+
+.r-player {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 64px;
+  font-size: 12px;
+}
+
+.r-player.offline {
+  opacity: 0.5;
+}
+
+.r-player .who {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.r-reactions {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 var(--side-right) 4px var(--side-left);
+}
+
+.tbl .r-reactions button {
+  padding: 4px;
+  background: none;
+  font-size: 22px;
+}
+
+.r-wheel {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px var(--side-right) 10px var(--side-left);
+}
+
+.wheel {
+  flex: none;
+  width: 150px;
+  height: 150px;
+}
+
+.wheel g {
+  transform-origin: 0 0;
+}
+
+.wheel-rim {
+  fill: #6b4a1e;
+}
+
+.wheel-red {
+  fill: #c62828;
+}
+
+.wheel-black {
+  fill: #1c1c1e;
+}
+
+.wheel-green {
+  fill: #1f9d55;
+}
+
+.wheel-hub {
+  fill: var(--tgui--bg_color);
+  stroke: #6b4a1e;
+  stroke-width: 3;
+}
+
+.wheel-number {
+  fill: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.wheel-result {
+  font-size: 44px;
+  font-weight: 800;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+/* Чёрное число на тёмном центре не читается — рисуем его цветом текста. */
+.wheel-result.wheel-black {
+  fill: var(--tgui--text_color);
+}
+
+.wheel-pointer {
+  fill: #f5c542;
+  stroke: #1c1c1e;
+  stroke-width: 1;
+}
+
+.r-side {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.r-headline {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.r-history {
+  display: flex;
+  gap: 4px;
+  min-height: 30px;
+  align-items: center;
+}
+
+.r-past {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+.r-past:first-child {
+  width: 34px;
+  height: 34px;
+  font-size: 15px;
+  opacity: 1;
+}
+
+.r-past.red,
+.cell.red {
+  background: #c62828;
+}
+
+.r-past.black,
+.cell.black {
+  background: #2c2c2e;
+}
+
+.r-past.green,
+.cell.green {
+  background: #1f9d55;
+}
+
+.r-board {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(6, 1fr);
+  align-content: start;
+  gap: 3px;
+  padding: 0 calc(8px + var(--inset-right)) 10px calc(8px + var(--inset-left));
+}
+
+.tbl button.cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 38px;
+  padding: 2px;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  color: #fff;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.tbl button.cell:disabled {
+  opacity: 1;
+}
+
+.tbl button.cell.zero {
+  grid-column: 1 / -1;
+}
+
+.tbl button.cell.group {
+  grid-column: span 2;
+  background: var(--tgui--secondary_fill);
+  color: var(--tgui--text_color);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tbl button.cell.group.red {
+  background: #c62828;
+  color: #fff;
+}
+
+.tbl button.cell.group.black {
+  background: #2c2c2e;
+  color: #fff;
+}
+
+.cell-hint {
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.cell-chip {
+  position: absolute;
+  top: -5px;
+  right: -3px;
+  min-width: 18px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: #f5c542;
+  color: #1c1c1e;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.tbl button.cell.won {
+  border-color: #f5c542;
+}
+
+.tbl button.cell.dim {
+  opacity: 0.35;
+}
+
+.tbl button.chip.selected {
+  background: var(--tgui--button_color);
+  color: var(--tgui--button_text_color);
+}
+
+.r-board + .bottom .chips {
+  grid-template-columns: repeat(5, 1fr);
+}
