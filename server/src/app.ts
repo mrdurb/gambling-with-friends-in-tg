@@ -4,7 +4,7 @@ import { POKER_BLINDS, POKER_MODES, isGameId, type Me, type PokerOptions } from 
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { AuthError, authenticate, type AuthConfig } from './auth.ts';
 import type { Db } from './db.ts';
-import { findPlayer, getBlackjackStats, getRating, getRouletteStats } from './stats.ts';
+import { findPlayer, getBlackjackStats, getPokerStats, getRating, getRouletteStats } from './stats.ts';
 import { createTable, findTable, listVisitedTables, recordVisit } from './tables.ts';
 import { upsertUser } from './users.ts';
 import { WalletError, withdrawFromCashier } from './wallet.ts';
@@ -86,7 +86,12 @@ export function buildApp(db: Db, authConfig: AuthConfig, options: AppOptions = {
     const raw = (request.params as { userId: string }).userId;
     const player = /^\d{1,16}$/.test(raw) ? findPlayer(db, Number(raw)) : null;
     if (!player) return reply.code(404).send({ error: 'not_found' });
-    return { player, blackjack: getBlackjackStats(db, player.id), roulette: getRouletteStats(db, player.id) };
+    return {
+      player,
+      blackjack: getBlackjackStats(db, player.id),
+      roulette: getRouletteStats(db, player.id),
+      poker: getPokerStats(db, player.id),
+    };
   });
 
   if (staticDir) app.register(fastifyStatic, { root: resolve(staticDir) });

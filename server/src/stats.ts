@@ -1,4 +1,13 @@
-import type { BjDetails, BlackjackStats, PlayerInfo, RatingRow, RouletteDetails, RouletteStats } from '@casino/shared';
+import type {
+  BjDetails,
+  BlackjackStats,
+  PlayerInfo,
+  PokerDetails,
+  PokerStats,
+  RatingRow,
+  RouletteDetails,
+  RouletteStats,
+} from '@casino/shared';
 import type { Db } from './db.ts';
 
 interface PlayerRow {
@@ -109,6 +118,24 @@ export function getRouletteStats(db: Db, userId: number): RouletteStats {
     stats.net += round.net;
     stats.biggestWin = Math.max(stats.biggestWin, round.net);
     if (details.bets[`n${details.number}`]) stats.numberHits += 1;
+  }
+  return stats;
+}
+
+export function getPokerStats(db: Db, userId: number): PokerStats {
+  const hands = db
+    .prepare(`
+      SELECT rr.net, rr.details FROM round_results rr JOIN rounds r ON r.id = rr.round_id
+      WHERE rr.user_id = ? AND r.game = 'poker'
+    `)
+    .all(userId) as unknown as { net: number; details: string }[];
+
+  const stats: PokerStats = { hands: hands.length, net: 0, biggestPot: 0, showdownsWon: 0 };
+  for (const hand of hands) {
+    const details = JSON.parse(hand.details) as PokerDetails;
+    stats.net += hand.net;
+    stats.biggestPot = Math.max(stats.biggestPot, details.pot);
+    if (details.showdown && hand.net > 0) stats.showdownsWon += 1;
   }
   return stats;
 }

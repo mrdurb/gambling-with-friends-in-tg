@@ -421,8 +421,18 @@ export interface RouletteStats {
   numberHits: number;
 }
 
+export interface PokerStats {
+  hands: number;
+  net: number;
+  // Крупнейший банк, который игрок забрал за раздачу.
+  biggestPot: number;
+  // Сколько раз выиграл на вскрытии.
+  showdownsWon: number;
+}
+
 export interface PlayerStats {
   player: PlayerInfo;
   blackjack: BlackjackStats;
   roulette: RouletteStats;
+  poker: PokerStats;
 }

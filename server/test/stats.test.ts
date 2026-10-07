@@ -1,9 +1,9 @@
-import type { BjDetails, RouletteBets, RoundOutcome } from '@casino/shared';
+import type { BjDetails, PokerDetails, RouletteBets, RoundOutcome } from '@casino/shared';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { openDb, type Db } from '../src/db.ts';
 import { settleRound } from '../src/rounds.ts';
-import { getBlackjackStats, getRating, getRouletteStats } from '../src/stats.ts';
+import { getBlackjackStats, getPokerStats, getRating, getRouletteStats } from '../src/stats.ts';
 import { upsertUser } from '../src/users.ts';
 import { withdrawFromCashier } from '../src/wallet.ts';
 
@@ -177,5 +177,49 @@ describe('roulette statistics', () => {
     const app = buildApp(db, { botToken: '', devAuth: true });
     const res = await app.inject({ url: '/api/stats/1', headers: { authorization: 'dev 1' } });
     expect(res.json().roulette).toEqual({ rounds: 1, wagered: 10, net: 350, biggestWin: 350, numberHits: 1 });
+  });
+});
+
+// Раздача покера одного игрока: вложено, забрано из банка, дошёл ли до вскрытия.
+function pokerHand(db: Db, userId: number, contributed: number, pot: number, showdown: boolean) {
+  const net = pot - contributed;
+  const outcome: RoundOutcome = net > 0 ? 'win' : net < 0 ? 'lose' : 'push';
+  const details: PokerDetails = { mode: 'nlh', pot, showdown };
+  settleRound(db, 'TABLE003', 'poker', [{ userId, wagered: contributed, net, outcome, details }]);
+}
+
+describe('poker statistics', () => {
+  it('is all zeros for a player who has not played poker', () => {
+    const db = setup([1]);
+    round(db, 1, 100);
+    expect(getPokerStats(db, 1)).toEqual({ hands: 0, net: 0, biggestPot: 0, showdownsWon: 0 });
+  });
+
+  it('counts hands, the net result, the biggest pot taken and showdowns won', () => {
+    const db = setup([1, 2]);
+    pokerHand(db, 1, 100, 250, true); // выиграл на вскрытии
+    pokerHand(db, 1, 50, 120, false); // все сбросили
+    pokerHand(db, 1, 200, 0, true); // проиграл на вскрытии
+    pokerHand(db, 1, 0, 0, false); // сбросил без вложений
+    pokerHand(db, 1, 40, 40, true); // поделил банк, остался при своих
+    pokerHand(db, 2, 10, 900, true);
+
+    expect(getPokerStats(db, 1)).toEqual({ hands: 5, net: 20, biggestPot: 250, showdownsWon: 1 });
+  });
+
+  it('stays out of the statistics of other games and counts towards the rating', async () => {
+    const db = setup([1]);
+    round(db, 1, 100);
+    spin(db, 1, 0, { red: 30 }, -30);
+    pokerHand(db, 1, 10, 60, true);
+
+    expect(getBlackjackStats(db, 1)).toMatchObject({ rounds: 1, net: 100 });
+    expect(getRouletteStats(db, 1)).toMatchObject({ rounds: 1, net: -30 });
+    expect(getPokerStats(db, 1)).toMatchObject({ hands: 1, net: 50 });
+    expect(getRating(db)).toMatchObject([{ won: 150, lost: 30, net: 120 }]);
+
+    const app = buildApp(db, { botToken: '', devAuth: true });
+    const res = await app.inject({ url: '/api/stats/1', headers: { authorization: 'dev 1' } });
+    expect(res.json().poker).toEqual({ hands: 1, net: 50, biggestPot: 60, showdownsWon: 1 });
   });
 });

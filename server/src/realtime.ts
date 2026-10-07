@@ -38,6 +38,8 @@ interface Deps {
 type Io = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, { user: Me }>;
 type Client = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, never>, { user: Me }>;
 
+const LEAVE_EVENTS = ['seat:leave', 'poker:leave'];
+
 const toPlayerInfo = ({ id, firstName, lastName, photoUrl }: Me): PlayerInfo => ({ id, firstName, lastName, photoUrl });
 
 // Сокеты поверх Rooms: авторизация, одно подключение на игрока, рассылка снимков по комнатам.
@@ -98,7 +100,8 @@ export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink
     const forward = (name: string, tooFast?: () => boolean) =>
       socket.on(name as 'game:bet', (...args: unknown[]) => {
         const ack = args.at(-1);
-        if (typeof ack !== 'function') return void (name === 'seat:leave' && rooms.action(user.id, name, []));
+        // «Встать» подтверждения не ждёт; остальным действиям без него отвечать некому.
+        if (typeof ack !== 'function') return void (LEAVE_EVENTS.includes(name) && rooms.action(user.id, name, []));
         ack(tooFast?.() ? { ok: false, error: 'too_fast' } : rooms.action(user.id, name, args.slice(0, -1)));
       });
 
@@ -120,6 +123,7 @@ export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink
 
     for (const name of ['seat:take', 'seat:leave', 'game:bet', 'game:action']) forward(name);
     for (const name of ['roulette:bet', 'roulette:clear', 'roulette:ready']) forward(name, bettingTooFast);
+    for (const name of ['poker:sit', 'poker:leave', 'poker:rebuy', 'poker:action', 'poker:discard', 'poker:show']) forward(name);
 
     // Чат и реакции нигде не сохраняются: проверили и сразу разослали тем, у кого открыт стол.
     socket.on('chat:send', (text, ack) => {
