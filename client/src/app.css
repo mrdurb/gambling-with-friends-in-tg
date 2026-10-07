@@ -1,17 +1,21 @@
 :root {
-  /* Отступы от краёв экрана в полноэкранном режиме: вырез камеры и системные полосы плюс кнопки Telegram.
-     Вне полноэкранного режима и вне Telegram равны нулю. */
+  /* Отступы от краёв экрана в полноэкранном режиме: вырез камеры, скругления и системные полосы
+     (safe area) плюс кнопки Telegram (content safe area). Вне полноэкранного режима и вне Telegram равны нулю. */
   --inset-top: calc(var(--tg-viewport-safe-area-inset-top, 0px) + var(--tg-viewport-content-safe-area-inset-top, 0px));
   --inset-bottom: calc(
     var(--tg-viewport-safe-area-inset-bottom, 0px) + var(--tg-viewport-content-safe-area-inset-bottom, 0px)
   );
+  --inset-left: calc(var(--tg-viewport-safe-area-inset-left, 0px) + var(--tg-viewport-content-safe-area-inset-left, 0px));
+  --inset-right: calc(
+    var(--tg-viewport-safe-area-inset-right, 0px) + var(--tg-viewport-content-safe-area-inset-right, 0px)
+  );
 }
 
+/* Фон тянется до краёв экрана, содержимое остаётся в безопасной зоне. */
 .app-root {
   box-sizing: border-box;
   min-height: 100vh;
-  padding-top: var(--inset-top);
-  padding-bottom: var(--inset-bottom);
+  padding: var(--inset-top) var(--inset-right) var(--inset-bottom) var(--inset-left);
   background: var(--tgui--secondary_bg_color);
 }
 

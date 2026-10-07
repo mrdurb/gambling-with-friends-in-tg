@@ -1,7 +1,13 @@
+/* Стол снимает общие отступы .app-root: фон шапки и нижней панели доходит до краёв экрана,
+   а отступы безопасной зоны каждая часть добавляет себе сама. */
 .tbl {
+  --side-left: calc(12px + var(--inset-left));
+  --side-right: calc(12px + var(--inset-right));
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - var(--inset-top) - var(--inset-bottom));
+  min-height: 100vh;
+  margin: calc(-1 * var(--inset-top)) calc(-1 * var(--inset-right)) calc(-1 * var(--inset-bottom))
+    calc(-1 * var(--inset-left));
   color: var(--tgui--text_color);
   font-size: 14px;
 }
@@ -37,7 +43,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: calc(8px + var(--inset-top)) var(--side-right) 8px var(--side-left);
   background: var(--tgui--bg_color);
 }
 
@@ -51,7 +57,7 @@
 }
 
 .tbl-notice {
-  padding: 6px 12px;
+  padding: 6px var(--side-right) 6px var(--side-left);
   text-align: center;
   color: var(--tgui--hint_color);
 }
@@ -113,7 +119,7 @@
   grid-template-columns: repeat(3, 1fr);
   align-content: start;
   gap: 6px;
-  padding: 0 8px 8px;
+  padding: 0 calc(8px + var(--inset-right)) 8px calc(8px + var(--inset-left));
 }
 
 .seat {
@@ -170,14 +176,19 @@
 
 .bottom {
   position: sticky;
-  bottom: var(--inset-bottom);
+  bottom: 0;
+}
+
+/* Нижний блок закрашивает полосу под жестом «домой» и скруглёнными углами, кнопки остаются выше неё. */
+.bottom > :last-child {
+  padding-bottom: max(10px, var(--inset-bottom));
 }
 
 .panel {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 10px var(--side-right) 10px var(--side-left);
   background: var(--tgui--bg_color);
   border-top: 1px solid var(--tgui--divider);
 }
@@ -247,7 +258,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 10px var(--side-right) 10px var(--side-left);
   background: var(--tgui--bg_color);
   border-top: 1px solid var(--tgui--divider);
 }
