@@ -1,4 +1,4 @@
-import { DISCONNECT_GRACE_MS, type PlayerInfo, type TableInfo, type TableSnapshot } from '@casino/shared';
+import { DISCONNECT_GRACE_MS, type PlayerInfo, type TableInfo, type BlackjackSnapshot } from '@casino/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Rooms } from '../src/rooms.ts';
 
@@ -7,12 +7,13 @@ const tableB: TableInfo = { code: 'BBBBBBBB', name: 'B', game: 'blackjack', invi
 const player = (id: number): PlayerInfo => ({ id, firstName: `Игрок ${id}`, lastName: null, photoUrl: null });
 
 function setup() {
-  const sent: TableSnapshot[] = [];
+  const sent: BlackjackSnapshot[] = [];
   const rooms = new Rooms({
-    broadcast: (snapshot) => sent.push(snapshot),
+    broadcast: (snapshot) => sent.push(snapshot as BlackjackSnapshot),
     balanceOf: () => 1000,
     settle: () => new Map(),
     notifyBalance: () => {},
+    spinNumber: () => 0,
     newShoe: () => [],
   });
   const last = (code: string) => sent.filter((s) => s.table.code === code).at(-1)!;
@@ -25,7 +26,7 @@ afterEach(() => vi.useRealTimers());
 describe('entering a table', () => {
   it('starts with six empty seats and counts the visitor as a spectator', () => {
     const { rooms } = setup();
-    const snapshot = rooms.enter(tableA, player(1));
+    const snapshot = rooms.enter(tableA, player(1)) as BlackjackSnapshot;
     expect(snapshot.seats).toEqual([null, null, null, null, null, null]);
     expect(snapshot.spectators).toBe(1);
     expect(snapshot.table).toEqual(tableA);
@@ -110,7 +111,7 @@ describe('losing the connection', () => {
     expect(last('AAAAAAAA').seats[0]).toEqual({ player: player(1), connected: false, leaving: false });
 
     vi.advanceTimersByTime(DISCONNECT_GRACE_MS - 1);
-    const back = rooms.enter(tableA, player(1));
+    const back = rooms.enter(tableA, player(1)) as BlackjackSnapshot;
     expect(back.seats[0]).toEqual({ player: player(1), connected: true, leaving: false });
 
     vi.advanceTimersByTime(DISCONNECT_GRACE_MS * 2);
@@ -151,6 +152,6 @@ describe('losing the connection', () => {
     rooms.sit(1, 0);
     rooms.exit(1);
     const renamed = { ...player(1), firstName: 'Новое имя' };
-    expect(rooms.enter(tableA, renamed).seats[0]?.player.firstName).toBe('Новое имя');
+    expect((rooms.enter(tableA, renamed) as BlackjackSnapshot).seats[0]?.player.firstName).toBe('Новое имя');
   });
 });

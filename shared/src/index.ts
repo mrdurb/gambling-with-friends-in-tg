@@ -50,7 +50,13 @@ export interface BlackjackSnapshot {
   game: BjView;
 }
 
-export type TableSnapshot = BlackjackSnapshot;
+export interface RouletteSnapshot {
+  kind: 'roulette';
+  table: TableInfo;
+  game: RouletteView;
+}
+
+export type TableSnapshot = BlackjackSnapshot | RouletteSnapshot;
 
 export type Ack<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 

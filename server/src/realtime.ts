@@ -27,6 +27,8 @@ interface Deps {
   appLink: string;
   // Подмена башмака в тестах; по умолчанию — честная перетасовка.
   newShoe?: () => Card[];
+  // Подмена колеса рулетки в тестах; по умолчанию — честное случайное число.
+  spinNumber?: () => number;
 }
 
 type Io = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, { user: Me }>;
@@ -37,7 +39,7 @@ const ACTIONS: BjAction[] = ['hit', 'stand', 'double', 'split'];
 const toPlayerInfo = ({ id, firstName, lastName, photoUrl }: Me): PlayerInfo => ({ id, firstName, lastName, photoUrl });
 
 // Сокеты поверх Rooms: авторизация, одно подключение на игрока, рассылка снимков по комнатам.
-export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink, newShoe }: Deps): Io {
+export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink, newShoe, spinNumber }: Deps): Io {
   const io: Io = new Server(httpServer);
   const connections = new Map<number, Client>();
   const rooms = new Rooms({
@@ -46,6 +48,7 @@ export function attachRealtime(httpServer: HttpServer, { db, authConfig, appLink
     settle: (tableCode, results, game) => settleRound(db, tableCode, game, results),
     notifyBalance: (userId, balance) => connections.get(userId)?.emit('balance', balance),
     newShoe: newShoe ?? (() => shuffledShoe(randomInt)),
+    spinNumber: spinNumber ?? (() => randomInt(37)),
   });
 
   io.use((socket, next) => {

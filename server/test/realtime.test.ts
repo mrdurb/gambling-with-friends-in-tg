@@ -11,7 +11,7 @@ import type {
   ReactionEvent,
   ServerToClientEvents,
   Suit,
-  TableSnapshot,
+  BlackjackSnapshot,
 } from '@casino/shared';
 import { io as connect, type Socket } from 'socket.io-client';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -20,6 +20,8 @@ import { openDb } from '../src/db.ts';
 import { attachRealtime } from '../src/realtime.ts';
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
+// Помощники ниже работают со столом блэкджека.
+type TableSnapshot = BlackjackSnapshot;
 
 const cleanups: (() => Promise<unknown> | unknown)[] = [];
 afterEach(async () => {
@@ -53,7 +55,7 @@ async function setup(script = '') {
 }
 
 const join = (socket: Client, code: string) =>
-  new Promise<Ack<{ snapshot: TableSnapshot }>>((resolve) => socket.emit('table:join', code, resolve));
+  new Promise<Ack<{ snapshot: TableSnapshot }>>((resolve) => socket.emit('table:join', code, resolve as never));
 const sit = (socket: Client, seat: number, force = false) =>
   new Promise<Ack>((resolve) => socket.emit('seat:take', seat, force, resolve));
 const bet = (socket: Client, amount: number) => new Promise<Ack>((resolve) => socket.emit('game:bet', amount, resolve));
@@ -72,10 +74,10 @@ const snapshotWhere = (socket: Client, matches: (snapshot: TableSnapshot) => boo
   new Promise<TableSnapshot>((resolve) => {
     const listener = (snapshot: TableSnapshot) => {
       if (!matches(snapshot)) return;
-      socket.off('table:snapshot', listener);
+      socket.off('table:snapshot', listener as never);
       resolve(snapshot);
     };
-    socket.on('table:snapshot', listener);
+    socket.on('table:snapshot', listener as never);
   });
 
 describe('realtime tables', () => {
